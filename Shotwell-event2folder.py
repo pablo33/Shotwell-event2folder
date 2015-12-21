@@ -18,6 +18,8 @@ def itemcheck(a):
 
 DBpath = "/home/pablo/.local/share/shotwell/data/photo.db"
 librarymainpath = "/home/pablo/Dropbox/Camera Uploads"
+# librarymainpath = "/home/pablo/Pictures"
+
 
 dbconnection = sqlite3.connect (DBpath)
 dbeventcursor = dbconnection.cursor ()
@@ -42,7 +44,7 @@ for e in dbeventcursor:
 	print (eventpath)
 
 	dbtablecursor = dbconnection.cursor()
-	dbtablecursor.execute('SELECT id,filename,title,exposure_time, title FROM PhotoTable WHERE event_id = ? UNION SELECT id,filename,title,exposure_time, title FROM VideoTable WHERE event_id = ?',(eventid, eventid))	
+	dbtablecursor.execute('SELECT id,filename,title,exposure_time, title FROM PhotoTable WHERE event_id = ? UNION SELECT id,filename,title,exposure_time, title FROM VideoTable WHERE event_id = ?',(eventid, eventid))
 	for p in dbtablecursor:
 		photoid, photopath, phototitle, phototimestamp, phototitle = p
 		photodate = datetime.fromtimestamp(phototimestamp)
@@ -73,9 +75,31 @@ for e in dbeventcursor:
 			os.makedirs (os.path.dirname(dest))
 		print ("OK >> moving: ", photopath, " >> ", dest, "\n",sep = "\n")
 		shutil.move (photopath, dest)
-	
+		# Changing DB pointer
+		'''
+		if photoid == dbconnection.execute('SELECT id FROM ? WHERE id = ?', (table, photoid )).fetchone()[0] :
+			print ('item is in Photo table', os.path.basename(photopath))
+			break
+		'''
+		# Check if file in photo-DB
+		for table in ('PhotoTable', 'VideoTable'):
+			if dbconnection.execute ('SELECT id FROM %s WHERE id = ? and filename = ?' % table,(photoid, photopath)).fetchone() != None:
+				print ('item is in %s Database' % table)
+				# updating new path in PhotoTable
+				dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % table, (dest, photoid))
+				break
+				'''
+				elif dbconnection.execute ('SELECT id FROM VideoTable WHERE id = ? and filename = ?',(photoid, photopath)).fetchone() != None:
+					print ('item is in VideoTable Database')
+					# updating new path in VideoTable
+					dbconnection.execute ('UPDATE VideoTable SET filename = ? where id = ?', (dest, photoid))
+				'''
+			else:
+				print ('photo is missing, something happend!!, can\'t held this error.')
+
 	dbtablecursor.close()
 
 dbeventcursor.close()
+dbconnection.commit()
 dbconnection.close ()
 
