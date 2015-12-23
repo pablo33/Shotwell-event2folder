@@ -92,23 +92,22 @@ for e in dbeventcursor:
 		infomsg = "Processing(" + str(photoid) + ") filename: " + photofilename
 		print (infomsg) ; logging.info (infomsg)
 
-		# Setting the destination
 		photonewfilename = photofilename
 		# checking a starting date in filename
-		expr = '(?P<year>[12]\d{3})(?P<month>[01]\d)(?P<day>[0-3]\d)[-_ ]?(?P<hour>[012]\d)(?P<min>[0-5]\d)(?P<sec>[0-5]\d)'
-		mo = re.search (expr, photofilename)
-		try:
-			mo.group()
-		except:
-			logging.debug ("Fulldate expression was not found in %s" % photofilename)
-			if insertdateinfilename == True:
+		if insertdateinfilename == True:
+			expr = '(?P<year>[12]\d{3})(?P<month>[01]\d)(?P<day>[0-3]\d)[-_ ]?(?P<hour>[012]\d)(?P<min>[0-5]\d)(?P<sec>[0-5]\d)'
+			mo = re.search (expr, photofilename)
+			try:
+				mo.group()
+			except:
+				logging.debug ("Fulldate expression was not found in %s" % photofilename)
 				photonewfilename = datetime.strftime(photodate, '%Y%m%d_%H%M%S') + " " + photofilename
 				print ("\tRenamed: Added a Fulldate")
 				logging.info ("Filename will be renamed as: %s" % photonewfilename)
-		else:
-			logging.debug ("Filename already starts with a full date expression")
+			else:
+				logging.debug ("Filename already starts with a full date expression")
 
-
+		# Setting the destination
 		dest = os.path.join (eventpath, photonewfilename)
 		logging.info ("will be send to :" + dest)
 
