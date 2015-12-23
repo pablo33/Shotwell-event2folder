@@ -1,13 +1,14 @@
 #!/usr/bin/python3
 
-import sqlite3, os, shutil, logging
+import sqlite3, os, shutil, logging, re
 from datetime import datetime
 
 # ------- Set Variables ---------
 
 DBpath = os.path.join(os.getenv('HOME'),".local/share/shotwell/data/photo.db")
-librarymainpath = "/home/pablo/Dropbox/Camera Uploads"
+librarymainpath = "/home/pablo/Pictures"
 dummy = True # Dummy mode. True will not perform any changes to DB or File structure 
+insertdateinfilename = True  #  Filenames will be renamed with starting with a fulldate expression
 # librarymainpath = "/home/pablo/Pictures"
 
 
@@ -44,6 +45,11 @@ logging.basicConfig(
 )
 print ("logging to:", logging_file)
 
+# 
+
+dummymsg = ''
+if dummy == True:
+	dummymsg = '(dummy mode)'
 
 # Check if Shotwell DB is present
 if itemcheck (DBpath) != "file":
@@ -63,6 +69,7 @@ for e in dbeventcursor:
 	#  ....TODO.... Check for name inconsistences, and change not allowed characters.
 	if eventname == None : eventname = ""
 	print ("\nProcessing event:(" + str(eventid) + ") " + eventname)
+	logging.info ('')
 	logging.info ('## Moving event nº' + str(eventid) + ", " + eventname + "(" + str(eventtime) + ")")
 
 	# defining event path:
@@ -86,7 +93,23 @@ for e in dbeventcursor:
 		print (infomsg) ; logging.info (infomsg)
 
 		# Setting the destination
-		dest = os.path.join (eventpath, photofilename)
+		photonewfilename = photofilename
+		# checking a starting date in filename
+		expr = '(?P<year>[12]\d{3})(?P<month>[01]\d)(?P<day>[0-3]\d)[-_ ]?(?P<hour>[012]\d)(?P<min>[0-5]\d)(?P<sec>[0-5]\d)'
+		mo = re.search (expr, photofilename)
+		try:
+			mo.group()
+		except:
+			logging.debug ("Fulldate expression was not found in %s" % photofilename)
+			if insertdateinfilename == True:
+				photonewfilename = datetime.strftime(photodate, '%Y%m%d_%H%M%S') + " " + photofilename
+				print ("\tRenamed: Added a Fulldate")
+				logging.info ("Filename will be renamed as: %s" % photonewfilename)
+		else:
+			logging.debug ("Filename already starts with a full date expression")
+
+
+		dest = os.path.join (eventpath, photonewfilename)
 		logging.info ("will be send to :" + dest)
 
 		# file operations
@@ -107,10 +130,10 @@ for e in dbeventcursor:
 
 		if itemcheck (os.path.dirname(dest)) == '':
 			os.makedirs (os.path.dirname(dest))
-		print ("moving:", photofilename, " >> ", dest)
+		print ("\tmoved:",)
 		if dummy == False:
 			shutil.move (photopath, dest)
-		logging.info ("file has been moved.")
+		logging.info ("file has been moved. %s" %dummymsg)
 
 		# Changing DB pointer
 		
@@ -121,7 +144,7 @@ for e in dbeventcursor:
 				# updating new path in (Photo/Video)-Table
 				if dummy == False:
 					dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % table, (dest, photoid))
-					logging.debug ("Entry %s updated at table %s" % (photoid, table))
+					logging.debug ("Entry %s updated at table %s.%s" % (photoid, table, dummymsg))
 				break
 			else:
 				print ("Photo is missing, something happend!!, can't held this error.")

@@ -18,3 +18,12 @@ Just launch the script from command line
 
 
 $ python3 Shotwell-event2folder.py
+
+
+
+_TODO_: 
+
+OK - Run on Dummy mode 
+OK - Add a fulldate identifier on filenames   (optional)
+ 
+Clean empty folders
