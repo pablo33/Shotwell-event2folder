@@ -6,9 +6,11 @@ from datetime import datetime
 # ------- Set Variables ---------
 
 DBpath = os.path.join(os.getenv('HOME'),".local/share/shotwell/data/photo.db")
-librarymainpath = "/home/pablo/Pictures"
-dummy = True # Dummy mode. True will not perform any changes to DB or File structure 
+librarymainpath = "/home/pablo/Dropbox/Camera Uploads"
+dummy = False # Dummy mode. True will not perform any changes to DB or File structure 
 insertdateinfilename = True  #  Filenames will be renamed with starting with a fulldate expression
+clearfolders = True  # Delete empty leaved folders
+
 # librarymainpath = "/home/pablo/Pictures"
 
 
@@ -45,11 +47,14 @@ logging.basicConfig(
 )
 print ("logging to:", logging_file)
 
-# 
+# initializing vars
 
 dummymsg = ''
 if dummy == True:
 	dummymsg = '(dummy mode)'
+
+foldercollection = set()
+
 
 # Check if Shotwell DB is present
 if itemcheck (DBpath) != "file":
@@ -79,15 +84,17 @@ for e in dbeventcursor:
 
 	# retrieving event's photos and videos
 	dbtablecursor = dbconnection.cursor()
-	dbtablecursor.execute('SELECT id,filename,title,exposure_time, title FROM PhotoTable WHERE event_id = ? UNION SELECT id,filename,title,exposure_time, title FROM VideoTable WHERE event_id = ?',(eventid, eventid))
+	dbtablecursor.execute("SELECT id,filename,title,exposure_time,title,'PhotoTable' AS DBTable FROM PhotoTable WHERE event_id = ? UNION SELECT id,filename,title,exposure_time,title,'VideoTable' AS DBTable FROM VideoTable WHERE event_id = ?",(eventid, eventid))
 
 	# Process each file
 	for p in dbtablecursor:
-		photoid, photopath, phototitle, phototimestamp, phototitle = p
+		photoid, photopath, phototitle, phototimestamp, phototitle, DBTable = p
 		photodate = datetime.fromtimestamp(phototimestamp)
 
+		# adding a folder to scan
+		foldercollection.add (os.path.dirname(photopath))	
+		logging.debug (os.path.dirname(photopath) + ' added to folders list')
 		# defining filename
-		#photofilename = photodate.strftime('%Y%m%d_%H%M%S')
 		photofilename = os.path.basename(photopath)
 		infomsg = "Processing(" + str(photoid) + ") filename: " + photofilename
 		print (infomsg) ; logging.info (infomsg)
@@ -95,7 +102,7 @@ for e in dbeventcursor:
 		photonewfilename = photofilename
 		# checking a starting date in filename
 		if insertdateinfilename == True:
-			expr = '(?P<year>[12]\d{3})(?P<month>[01]\d)(?P<day>[0-3]\d)[-_ ]?(?P<hour>[012]\d)(?P<min>[0-5]\d)(?P<sec>[0-5]\d)'
+			expr = '[12]\d{3}[01]\d[0-3]\d[.-_ ]?[012]\d[0-5]\d[0-5]\d'
 			mo = re.search (expr, photofilename)
 			try:
 				mo.group()
@@ -135,18 +142,9 @@ for e in dbeventcursor:
 		logging.info ("file has been moved. %s" %dummymsg)
 
 		# Changing DB pointer
-		
-		# Check if file in photo-DB
-		for table in ('PhotoTable', 'VideoTable'):
-			if dbconnection.execute ('SELECT id FROM %s WHERE id = ? and filename = ?' % table,(photoid, photopath)).fetchone() != None:
-				logging.debug ('item is in %s Database' % table)
-				# updating new path in (Photo/Video)-Table
-				if dummy == False:
-					dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % table, (dest, photoid))
-					logging.debug ("Entry %s updated at table %s.%s" % (photoid, table, dummymsg))
-				break
-			else:
-				print ("Photo is missing, something happend!!, can't held this error.")
+		if dummy == False:
+			dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % DBTable, (dest, photoid))
+			logging.debug ("Entry %s updated at table %s.%s" % (photoid, DBTable, dummymsg))
 
 	dbtablecursor.close()
 dbeventcursor.close()
@@ -154,3 +152,25 @@ dbconnection.commit()
 logging.debug ("Changes were commited")
 dbconnection.close ()
 logging.debug ("DB connection was closed")
+
+# Cleaning empty folders
+if clearfolders == True:
+	logging.info ('Checking empty folders to delete them')
+	foldercollectionnext = set()
+	while len(foldercollection) > 0:
+		for i in foldercollection:
+			logging.info ('checking: %s' %i)
+			if itemcheck(i) != 'folder':
+				logging.warning ('\tDoes not exists or is not a folder. Skipping')
+				continue			
+			if len (os.listdir(i)) == 0:
+				shutil.rmtree (i)
+				infomsg = "\tfolder: %s has been removed. (was empty)" % i
+				print (infomsg)
+				logging.info (infomsg)
+				foldercollectionnext.add (os.path.dirname(i))
+				logging.debug ("\tadded next level to re-scan")
+		foldercollection = foldercollectionnext
+		foldercollectionnext = set()
+print ('Done')
+
