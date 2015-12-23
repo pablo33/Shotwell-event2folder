@@ -1,7 +1,15 @@
 #!/usr/bin/python3
 
-import sqlite3, os, shutil
+import sqlite3, os, shutil, logging
 from datetime import datetime
+
+# ------- Set Variables ---------
+
+DBpath = os.path.join(os.getenv('HOME'),".local/share/shotwell/data/photo.db")
+librarymainpath = "/home/pablo/Dropbox/Camera Uploads"
+dummy = True # Dummy mode. True will not perform any changes to DB or File structure 
+# librarymainpath = "/home/pablo/Pictures"
+
 
 # ------ utils --------
 def itemcheck(a):
@@ -14,37 +22,59 @@ def itemcheck(a):
 	return ""
 
 
-# ------- Variables ---------
+# ===============================
+# The logging module.
+# ===============================
+loginlevel = 'DEBUG'
+logpath = './'
+logging_file = os.path.join(logpath, 'Shotwell-event2folder.log')
 
-DBpath = "/home/pablo/.local/share/shotwell/data/photo.db"
-librarymainpath = "/home/pablo/Dropbox/Camera Uploads"
-# librarymainpath = "/home/pablo/Pictures"
 
+# Getting current date and time
+now = datetime.now()
+today = "/".join([str(now.day), str(now.month), str(now.year)])
+tohour = ":".join([str(now.hour), str(now.minute)])
+
+print ("Loginlevel:", loginlevel)
+logging.basicConfig(
+	level = loginlevel,
+	format = '%(asctime)s : %(levelname)s : %(message)s',
+	filename = logging_file,
+	filemode = 'w'  # a = add
+)
+print ("logging to:", logging_file)
+
+
+# Check if Shotwell DB is present
+if itemcheck (DBpath) != "file":
+	infomsg = 'Shotwell Database is not present, this script is intended to work on a Shotwell Database located at:\n' + DBpath
+	print (infomsg) ; logging.info (infomsg)
+	exit()
 
 dbconnection = sqlite3.connect (DBpath)
 dbeventcursor = dbconnection.cursor ()
 
-#dbeventcursor.execute ('sentencia SQL')
+# event cursor
 dbeventcursor.execute('SELECT id,name FROM EventTable')
 for e in dbeventcursor:
 	# Retrieve event data
 	eventid, eventname = e
 	eventtime = datetime.fromtimestamp(dbconnection.execute('SELECT AVG(exposure_time) FROM PhotoTable WHERE event_id = ? and exposure_time is not null',(eventid,)).fetchone()[0])  # Average
+	#  ....TODO.... Check for name inconsistences, and change not allowed characters.
 	if eventname == None : eventname = ""
-	#  ....TODO.... Check for name inconsistences
-	print (
-		("Moving event nº,",		eventid),
-		("eventname:",				eventname),
-		("eventdate(average):",	eventtime),
-			sep = "\n")
+	print ("\nProcessing event:(" + str(eventid) + ") " + eventname)
+	logging.info ('## Moving event nº' + str(eventid) + ", " + eventname + "(" + str(eventtime) + ")")
 
-	# defining path:
+	# defining event path:
 	
 	eventpath = os.path.join(librarymainpath,eventtime.strftime('%Y'),eventtime.strftime('%Y-%m-%d ') + eventname)
-	print (eventpath)
+	logging.info ("path for the event: " + eventpath)
 
+	# retrieving event's photos and videos
 	dbtablecursor = dbconnection.cursor()
 	dbtablecursor.execute('SELECT id,filename,title,exposure_time, title FROM PhotoTable WHERE event_id = ? UNION SELECT id,filename,title,exposure_time, title FROM VideoTable WHERE event_id = ?',(eventid, eventid))
+
+	# Process each file
 	for p in dbtablecursor:
 		photoid, photopath, phototitle, phototimestamp, phototitle = p
 		photodate = datetime.fromtimestamp(phototimestamp)
@@ -52,54 +82,53 @@ for e in dbeventcursor:
 		# defining filename
 		#photofilename = photodate.strftime('%Y%m%d_%H%M%S')
 		photofilename = os.path.basename(photopath)
-		print (photofilename)
+		infomsg = "Processing(" + str(photoid) + ") filename: " + photofilename
+		print (infomsg) ; logging.info (infomsg)
 
 		# Setting the destination
 		dest = os.path.join (eventpath, photofilename)
-		print (dest)
+		logging.info ("will be send to :" + dest)
 
 		# file operations
 		if itemcheck (photopath) != "file":
-			print ("Image in database is not present at this time. Doing nothing.")
+			infomsg = "Image in database is not present at this time. Doing nothing."
+			print (infomsg) ; logging.info (infomsg)
 			continue
 
 		if photopath == dest :
-			print ("This file is already on its destination. Doing nothing")
+			infomsg = "This file is already on its destination. Doing nothing."
+			print (infomsg) ; logging.info (infomsg)
 			continue
 
 		if itemcheck (dest) != "":
-			print (photopath, "Already exists at destination, Skipping")
+			infomsg = "File already exists at destination, Skipping."
+			print (infomsg) ; logging.info (infomsg)
 			continue
 
 		if itemcheck (os.path.dirname(dest)) == '':
 			os.makedirs (os.path.dirname(dest))
-		print ("OK >> moving: ", photopath, " >> ", dest, "\n",sep = "\n")
-		shutil.move (photopath, dest)
+		print ("moving:", photofilename, " >> ", dest)
+		if dummy == False:
+			shutil.move (photopath, dest)
+		logging.info ("file has been moved.")
+
 		# Changing DB pointer
-		'''
-		if photoid == dbconnection.execute('SELECT id FROM ? WHERE id = ?', (table, photoid )).fetchone()[0] :
-			print ('item is in Photo table', os.path.basename(photopath))
-			break
-		'''
+		
 		# Check if file in photo-DB
 		for table in ('PhotoTable', 'VideoTable'):
 			if dbconnection.execute ('SELECT id FROM %s WHERE id = ? and filename = ?' % table,(photoid, photopath)).fetchone() != None:
-				print ('item is in %s Database' % table)
-				# updating new path in PhotoTable
-				dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % table, (dest, photoid))
+				logging.debug ('item is in %s Database' % table)
+				# updating new path in (Photo/Video)-Table
+				if dummy == False:
+					dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % table, (dest, photoid))
+					logging.debug ("Entry %s updated at table %s" % (photoid, table))
 				break
-				'''
-				elif dbconnection.execute ('SELECT id FROM VideoTable WHERE id = ? and filename = ?',(photoid, photopath)).fetchone() != None:
-					print ('item is in VideoTable Database')
-					# updating new path in VideoTable
-					dbconnection.execute ('UPDATE VideoTable SET filename = ? where id = ?', (dest, photoid))
-				'''
 			else:
-				print ('photo is missing, something happend!!, can\'t held this error.')
+				print ("Photo is missing, something happend!!, can't held this error.")
 
 	dbtablecursor.close()
-
 dbeventcursor.close()
 dbconnection.commit()
+logging.debug ("Changes were commited")
 dbconnection.close ()
-
+logging.debug ("DB connection was closed")
