@@ -6,10 +6,12 @@ from datetime import datetime
 # ------- Set Variables ---------
 
 DBpath = os.path.join(os.getenv('HOME'),".local/share/shotwell/data/photo.db")
-librarymainpath = "/home/pablo/Dropbox/Camera Uploads"
+librarymainpath = "/home/pablo/Pictures"
+# librarymainpath = "/home/pablo/Documents"
 dummy = False # Dummy mode. True will not perform any changes to DB or File structure 
-insertdateinfilename = True  #  Filenames will be renamed with starting with a fulldate expression
+insertdateinfilename = True  #  Filenames will be renamed with starting with a full-date expression
 clearfolders = True  # Delete empty leaved folders
+leaveamount = 2500000000  #  Leave this amount of KB in place. This affects to the more recent imported images and with the more recent date. use 0 to disable and move all the pictures.
 
 # librarymainpath = "/home/pablo/Pictures"
 
@@ -53,7 +55,9 @@ dummymsg = ''
 if dummy == True:
 	dummymsg = '(dummy mode)'
 
-foldercollection = set()
+foldercollection = set ()
+datelimit2move_import = datetime.now()
+datelimit2move_exposure = datetime.now()
 
 
 # Check if Shotwell DB is present
@@ -63,8 +67,30 @@ if itemcheck (DBpath) != "file":
 	exit()
 
 dbconnection = sqlite3.connect (DBpath)
-dbeventcursor = dbconnection.cursor ()
 
+# Set the last Kb of imported data and stablishing the limit to move if any.
+if leaveamount > 0 :
+	foundlimit = False
+	dballitemscursor = dbconnection.cursor ()
+	dballitemscursor.execute ("SELECT filesize,import_id,exposure_time,'PhotoTable' as tabla FROM PhotoTable UNION SELECT filesize,import_id,exposure_time,'VideoTable' as tabla FROM VideoTable ORDER BY import_id DESC, exposure_time DESC")
+	acumulatedKb = 0
+	for entry in dballitemscursor:
+		acumulatedKb = acumulatedKb + entry[0]
+		print (acumulatedKb, entry)
+		if acumulatedKb > leaveamount :
+			foundlimit = True
+			break
+	if foundlimit == True :
+		datelimit2move_import   = datetime.fromtimestamp(entry[1])
+		datelimit2move_exposure = datetime.fromtimestamp(entry[2])
+		print ("Amount limit: import_id:", entry[1], "exposure_time:", entry[2])
+		print (datelimit2move_import, datelimit2move_exposure)
+	else:
+		leaveamount = 0  # all pictures will be moved
+	dballitemscursor.close()
+
+
+dbeventcursor = dbconnection.cursor ()
 # event cursor
 dbeventcursor.execute('SELECT id,name FROM EventTable')
 for e in dbeventcursor:
@@ -84,12 +110,19 @@ for e in dbeventcursor:
 
 	# retrieving event's photos and videos
 	dbtablecursor = dbconnection.cursor()
-	dbtablecursor.execute("SELECT id,filename,title,exposure_time,title,'PhotoTable' AS DBTable FROM PhotoTable WHERE event_id = ? UNION SELECT id,filename,title,exposure_time,title,'VideoTable' AS DBTable FROM VideoTable WHERE event_id = ?",(eventid, eventid))
+	dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable FROM VideoTable WHERE event_id = ?",(eventid, eventid))
 
 	# Process each file
 	for p in dbtablecursor:
-		photoid, photopath, phototitle, phototimestamp, phototitle, DBTable = p
+		photoid, photopath, phototitle, phototimestamp, import_id, DBTable = p
 		photodate = datetime.fromtimestamp(phototimestamp)
+		photodateimport = datetime.fromtimestamp(import_id)
+
+		# Check if file is in the last Kb to 
+		if leaveamount > 0 and datelimit2move_import <= photodateimport and datelimit2move_exposure <= photodate : 
+			logging.info ("File is in the gap of the %s Kbs of the last imported pictures that you don't want to move" % leaveamount)
+			print ("\tThis file is in the gap of the amount of the last imported Pictures that you don't want to move.")
+			continue
 
 		# adding a folder to scan
 		foldercollection.add (os.path.dirname(photopath))	
@@ -101,7 +134,7 @@ for e in dbeventcursor:
 
 		photonewfilename = photofilename
 		# checking a starting date in filename
-		if insertdateinfilename == True:
+		if insertdateinfilename == True and phototimestamp != None:
 			expr = '[12]\d{3}[01]\d[0-3]\d[.-_ ]?[012]\d[0-5]\d[0-5]\d'
 			mo = re.search (expr, photofilename)
 			try:
@@ -172,5 +205,5 @@ if clearfolders == True:
 				logging.debug ("\tadded next level to re-scan")
 		foldercollection = foldercollectionnext
 		foldercollectionnext = set()
-print ('Done')
+print ('Done!')
 

@@ -24,6 +24,4 @@ _TODO_:
 OK - Run on "Dummy mode"
 OK - Add a fulldate identifier on filenames   (optional)
 OK - Clean empty folders
-
-Do not move file operations on the last XXMBs imported files.
- 
+OK - Leave on its place the last imported nnKbs of data.
