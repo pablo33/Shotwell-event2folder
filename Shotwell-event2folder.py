@@ -1,19 +1,11 @@
 #!/usr/bin/python3
 
-import sqlite3, os, shutil, logging, re
+import sqlite3, os, sys, shutil, logging, re
 from datetime import datetime
 
 # ------- Set Variables ---------
 
 DBpath = os.path.join(os.getenv('HOME'),".local/share/shotwell/data/photo.db")
-librarymainpath = "/home/pablo/Pictures"
-# librarymainpath = "/home/pablo/Documents"
-dummy = False # Dummy mode. True will not perform any changes to DB or File structure 
-insertdateinfilename = True  #  Filenames will be renamed with starting with a full-date expression
-clearfolders = True  # Delete empty leaved folders
-leaveamount = 2500000000  #  Leave this amount of KB in place. This affects to the more recent imported images and with the more recent date. use 0 to disable and move all the pictures.
-
-# librarymainpath = "/home/pablo/Pictures"
 
 
 # ------ utils --------
@@ -25,6 +17,48 @@ def itemcheck(a):
 	if os.path.islink(a):
 		return 'link'
 	return ""
+
+
+# Load user config:
+# Getting user folder to place log files....
+userpath = os.path.join(os.getenv('HOME'),".Shotwell-event2folder")
+userfileconfig = os.path.join(userpath,"Shotevent2folder_cfg.py")
+if itemcheck (userpath) != "folder":
+	os.makedirs(userpath)
+
+if itemcheck (userfileconfig) == "file":
+	print ("Loading user configuration....")
+	sys.path.append(userpath)
+	import Shotevent2folder_cfg
+else:
+	print ("There isn't an user config file: " + userfileconfig)
+	# Create a new config file
+	f = open(userfileconfig,"w")
+	f.write ('''
+# Shotwell-event2folder Config file.
+# This options can be overriden by entering a command line options
+# This is a python file. Be careful and see the sintaxt.
+
+librarymainpath = "%(home)s/Pictures"
+dummy = False # Dummy mode. True will not perform any changes to DB or File structure 
+insertdateinfilename = True  #  Filenames will be renamed with starting with a full-date expression
+clearfolders = True  # Delete empty folders
+leaveamount = 0 # 2500000000  > this would be 2,5Gb in Kbs#  Leave this amount of KB in place. This affects to the more recent imported images and with the more recent date. use 0 to disable and move all the pictures.
+'''%{'home':os.getenv('HOME')}
+	)
+	f.close()
+	print ("An user config file has been created at:", userfileconfig)
+	print ("Please customize by yourself before run this software again.")
+	print ("This software is will try to open it with a text editor (gedit).")
+	os.system ("gedit " + userfileconfig)
+	exit()
+
+# Getting variables.
+librarymainpath = Shotevent2folder_cfg.librarymainpath
+dummy = Shotevent2folder_cfg.dummy  # Dummy mode. True will not perform any changes to DB or File structure 
+insertdateinfilename = Shotevent2folder_cfg.insertdateinfilename  #  Filenames will be renamed with starting with a full-date expression
+clearfolders = Shotevent2folder_cfg.clearfolders  # Delete empty folders
+leaveamount = Shotevent2folder_cfg.leaveamount  #  Leave this amount of KB in place. This affects to the more recent imported images and with the more recent date. use 0 to disable and move all the pictures.
 
 
 # ===============================
@@ -76,14 +110,13 @@ if leaveamount > 0 :
 	acumulatedKb = 0
 	for entry in dballitemscursor:
 		acumulatedKb = acumulatedKb + entry[0]
-		print (acumulatedKb, entry)
 		if acumulatedKb > leaveamount :
 			foundlimit = True
 			break
 	if foundlimit == True :
 		datelimit2move_import   = datetime.fromtimestamp(entry[1])
 		datelimit2move_exposure = datetime.fromtimestamp(entry[2])
-		print ("Amount limit: import_id:", entry[1], "exposure_time:", entry[2])
+		logging.info ("Amount limit: import_id:" + str(entry[1]) + "exposure_time:" + str( entry[2]))
 		print (datelimit2move_import, datelimit2move_exposure)
 	else:
 		leaveamount = 0  # all pictures will be moved
@@ -91,12 +124,18 @@ if leaveamount > 0 :
 
 
 dbeventcursor = dbconnection.cursor ()
+# Inserting a Trash event
+dbeventcursor.execute("INSERT INTO EventTable (id, name) VALUES (-1,'Trash')")
 # event cursor
 dbeventcursor.execute('SELECT id,name FROM EventTable')
 for e in dbeventcursor:
 	# Retrieve event data
 	eventid, eventname = e
-	eventtime = datetime.fromtimestamp(dbconnection.execute('SELECT AVG(exposure_time) FROM PhotoTable WHERE event_id = ? and exposure_time is not null',(eventid,)).fetchone()[0])  # Average
+	eventavgtime = dbconnection.execute('SELECT AVG(exposure_time) FROM PhotoTable WHERE event_id = ? and exposure_time is not null',(eventid,)).fetchone()[0]  # Average
+	if eventavgtime == None:
+		logging.debug ('\tEvent %s has no photos (is empty). Skipping.' % eventid)
+		continue
+	eventtime = datetime.fromtimestamp(eventavgtime)
 	#  ....TODO.... Check for name inconsistences, and change not allowed characters.
 	if eventname == None : eventname = ""
 	print ("\nProcessing event:(" + str(eventid) + ") " + eventname)
@@ -105,7 +144,12 @@ for e in dbeventcursor:
 
 	# defining event path:
 	
-	eventpath = os.path.join(librarymainpath,eventtime.strftime('%Y'),eventtime.strftime('%Y-%m-%d ') + eventname)
+	if eventid == -1 :
+		eventpath = os.path.join(librarymainpath, eventname)
+	else:
+		eventpath = os.path.join(librarymainpath,eventtime.strftime('%Y'),eventtime.strftime('%Y-%m-%d ') + eventname)
+		
+	eventpath = eventpath.strip()
 	logging.info ("path for the event: " + eventpath)
 
 	# retrieving event's photos and videos
@@ -180,6 +224,8 @@ for e in dbeventcursor:
 			logging.debug ("Entry %s updated at table %s.%s" % (photoid, DBTable, dummymsg))
 
 	dbtablecursor.close()
+
+dbeventcursor.execute("DELETE FROM EventTable WHERE id = -1")
 dbeventcursor.close()
 dbconnection.commit()
 logging.debug ("Changes were commited")
