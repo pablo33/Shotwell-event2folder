@@ -47,7 +47,7 @@ leaveamount = 0 # 2500000000  > this would be 2,5Gb in Kbs#  Leave this amount o
 '''%{'home':os.getenv('HOME')}
 	)
 	f.close()
-	print ("An user config file has been created at:", userfileconfig)
+	print ("Your user config file has been created at:", userfileconfig)
 	print ("Please customize by yourself before run this software again.")
 	print ("This software is will try to open it with a text editor (gedit).")
 	os.system ("gedit " + userfileconfig)
