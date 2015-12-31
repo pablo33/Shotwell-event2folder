@@ -28,4 +28,5 @@ OK - Leave on its place the last imported nnKbs of data.
 OK - an user config file and an user config path  
 OK - Move Thashed files to a specific Trash folder  
 
+(coding) Reorganize main loop and get all the entries in one loop usin Joint in SQL.
 Check that current date in filename is correct, and modify in case it is not correct. (because date in file has been modified)  
