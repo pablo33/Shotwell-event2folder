@@ -16,17 +16,3 @@ it has been tesded with Shotwell 0.18.0 (ubuntu 14-10)
 Just launch the script from command line
 
 _$ python3 Shotwell-event2folder.py_
-
-
-
-_TODO_: 
-
-OK - Run on "Dummy mode"  
-OK - Add a fulldate identifier on filenames   (optional)  
-OK - Clean empty folders  
-OK - Leave on its place the last imported nnKbs of data.  
-OK - an user config file and an user config path  
-OK - Move Thashed files to a specific Trash folder  
-
-(coding) Reorganize main loop and get all the entries in one loop usin Joint in SQL.
-Check that current date in filename is correct, and modify in case it is not correct. (because date in file has been modified)  
