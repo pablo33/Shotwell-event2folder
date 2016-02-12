@@ -178,6 +178,7 @@ for e in dbeventcursor:
 
 		photonewfilename = photofilename
 		# checking a starting date in filename
+		sep = ""
 		if insertdateinfilename == True and phototimestamp != None:
 			expr = '[12]\d{3}[01]\d[0-3]\d[.-_ ]?[012]\d[0-5]\d[0-5]\d'
 			mo = re.search (expr, photofilename)
@@ -185,11 +186,15 @@ for e in dbeventcursor:
 				mo.group()
 			except:
 				logging.debug ("Fulldate expression was not found in %s" % photofilename)
-				photonewfilename = datetime.strftime(photodate, '%Y%m%d_%H%M%S') + " " + photofilename
-				print ("\tRenamed: Added a Fulldate")
-				logging.info ("Filename will be renamed as: %s" % photonewfilename)
+				sep = " "
 			else:
 				logging.debug ("Filename already starts with a full date expression")
+				logging.debug ("updating date on filename")
+				photofilename = photofilename [len(mo.group() ):]
+				print (photofilename, mo.group(), len (mo.group()))
+
+			photonewfilename = datetime.strftime(photodate, '%Y%m%d_%H%M%S') + sep + photofilename
+			logging.info ("Filename will be renamed as: %s" % photonewfilename)
 
 		# Setting the destination
 		dest = os.path.join (eventpath, photonewfilename)
@@ -213,7 +218,7 @@ for e in dbeventcursor:
 
 		if itemcheck (os.path.dirname(dest)) == '':
 			os.makedirs (os.path.dirname(dest))
-		print ("\tmoved:",)
+		print ("\tmoved.",)
 		if dummy == False:
 			shutil.move (photopath, dest)
 		logging.info ("file has been moved. %s" %dummymsg)

@@ -10,9 +10,10 @@ This script will process shotwell DB and make the changes.
 
 **Dependencies:**
 
+Python3
 it has been tesded with Shotwell 0.18.0 (ubuntu 14-10)
 
 **Usage:**
 Just launch the script from command line
 
-_$ python3 Shotwell-event2folder.py_
+	$ python3 Shotwell-event2folder.py
