@@ -140,7 +140,7 @@ for e in dbeventcursor:
 	if eventname == None : eventname = ""
 	print ("\nProcessing event:(" + str(eventid) + ") " + eventname)
 	logging.info ('')
-	logging.info ('## Moving event nº' + str(eventid) + ", " + eventname + "(" + str(eventtime) + ")")
+	logging.info ('## Processing event nº' + str(eventid) + ", " + eventname + "(" + str(eventtime) + ")")
 
 	# defining event path:
 	
@@ -196,7 +196,12 @@ for e in dbeventcursor:
 			photonewfilename = datetime.strftime(photodate, '%Y%m%d_%H%M%S') + sep + photofilename
 			logging.info ("Filename will be renamed as: %s" % photonewfilename)
 
+
+
 		# Setting the destination
+		if datetime.strftime(photodate, '%Y%m%d') == '19700101' and eventid == -1:
+			logging.info ('This file goes to the no-date folder')
+			eventpath = eventpath.replace('/Trash','/no_event',1)
 		dest = os.path.join (eventpath, photonewfilename)
 		logging.info ("will be send to :" + dest)
 
