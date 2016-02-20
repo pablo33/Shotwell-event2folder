@@ -43,7 +43,8 @@ librarymainpath = "%(home)s/Pictures"
 dummy = False # Dummy mode. True will not perform any changes to DB or File structure 
 insertdateinfilename = True  #  Filenames will be renamed with starting with a full-date expression
 clearfolders = True  # Delete empty folders
-leaveamount = 0 # 2500000000  > this would be 2,5Gb in Kbs#  Leave this amount of KB in place. This affects to the more recent imported images and with the more recent date. use 0 to disable and move all the pictures.
+librarymostrecentpath =  "%(home)s/Pictures/mostrecent"  # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
+mostrecentkbs = 2000000000  # Amount of max Kbs to send to the most recent picture path as destination. Set 0 if you do not want to send any pictures there.
 '''%{'home':os.getenv('HOME')}
 	)
 	f.close()
@@ -58,7 +59,8 @@ librarymainpath = Shotevent2folder_cfg.librarymainpath
 dummy = Shotevent2folder_cfg.dummy  # Dummy mode. True will not perform any changes to DB or File structure 
 insertdateinfilename = Shotevent2folder_cfg.insertdateinfilename  #  Filenames will be renamed with starting with a full-date expression
 clearfolders = Shotevent2folder_cfg.clearfolders  # Delete empty folders
-leaveamount = Shotevent2folder_cfg.leaveamount  #  Leave this amount of KB in place. This affects to the more recent imported images and with the more recent date. use 0 to disable and move all the pictures.
+librarymostrecentpath = Shotevent2folder_cfg.librarymostrecentpath    # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
+mostrecentkbs = Shotevent2folder_cfg.mostrecentkbs  # Amount of max Kbs to send to the most recent picture path as destination. Set 0 if you do not want to send any pictures there.
 
 
 # ===============================
@@ -102,26 +104,19 @@ if itemcheck (DBpath) != "file":
 
 dbconnection = sqlite3.connect (DBpath)
 
-# Set the last Kb of imported data and stablishing the limit to move if any.
-if leaveamount > 0 :
-	foundlimit = False
+# Set the more recent Kbs of data and stablishing the limit to move if any.
+if mostrecentkbs > 0 :
 	dballitemscursor = dbconnection.cursor ()
-	dballitemscursor.execute ("SELECT filesize,import_id,exposure_time,'PhotoTable' as tabla FROM PhotoTable UNION SELECT filesize,import_id,exposure_time,'VideoTable' as tabla FROM VideoTable ORDER BY import_id DESC, exposure_time DESC")
+	dballitemscursor.execute ("SELECT filesize,exposure_time,'PhotoTable' as tabla FROM PhotoTable UNION SELECT filesize,exposure_time,'VideoTable' as tabla FROM VideoTable ORDER BY exposure_time DESC")
 	acumulatedKb = 0
 	for entry in dballitemscursor:
 		acumulatedKb = acumulatedKb + entry[0]
-		if acumulatedKb > leaveamount :
-			foundlimit = True
+		print (acumulatedKb)
+		if acumulatedKb >= mostrecentkbs :
 			break
-	if foundlimit == True :
-		datelimit2move_import   = datetime.fromtimestamp(entry[1])
-		datelimit2move_exposure = datetime.fromtimestamp(entry[2])
-		logging.info ("Amount limit: import_id:" + str(entry[1]) + "exposure_time:" + str( entry[2]))
-		print (datelimit2move_import, datelimit2move_exposure)
-	else:
-		leaveamount = 0  # all pictures will be moved
+	datelimit2move_exposure = datetime.fromtimestamp(entry[1])
+	logging.info ("Exposure time limited to " + str( entry[1]))
 	dballitemscursor.close()
-
 
 dbeventcursor = dbconnection.cursor ()
 # Inserting a Trash event
@@ -146,11 +141,15 @@ for e in dbeventcursor:
 	
 	if eventid == -1 :
 		eventpath = os.path.join(librarymainpath, eventname)
+		eventpathlast = os.path.join(librarymostrecentpath, eventname)
 	else:
 		eventpath = os.path.join(librarymainpath,eventtime.strftime('%Y'),eventtime.strftime('%Y-%m-%d ') + eventname)
-		
-	eventpath = eventpath.strip()
+		eventpathlast = os.path.join(librarymostrecentpath,eventtime.strftime('%Y'),eventtime.strftime('%Y-%m-%d ') + eventname)
+
+	eventpath, eventpathlast = eventpath.strip(), eventpathlast.strip()
+
 	logging.info ("path for the event: " + eventpath)
+	logging.info ("path for the event in case of the the most recent pictures: " + eventpathlast)
 
 	# retrieving event's photos and videos
 	dbtablecursor = dbconnection.cursor()
@@ -158,15 +157,15 @@ for e in dbeventcursor:
 
 	# Process each file
 	for p in dbtablecursor:
+		eventpathF = eventpath
 		photoid, photopath, phototitle, phototimestamp, import_id, DBTable = p
 		photodate = datetime.fromtimestamp(phototimestamp)
 		photodateimport = datetime.fromtimestamp(import_id)
 
-		# Check if file is in the last Kb to 
-		if leaveamount > 0 and datelimit2move_import <= photodateimport and datelimit2move_exposure <= photodate : 
-			logging.info ("File is in the gap of the %s Kbs of the last imported pictures that you don't want to move" % leaveamount)
-			print ("\tThis file is in the gap of the amount of the last imported Pictures that you don't want to move.")
-			continue
+		# Check if file is in the last Kb to move to most recent dir.
+		if mostrecentkbs != 0 and photodate >= datelimit2move_exposure : 
+			logging.info ("File will be send to the recent pictures folder")
+			eventpathF = eventpathlast
 
 		# adding a folder to scan
 		foldercollection.add (os.path.dirname(photopath))	
@@ -201,8 +200,8 @@ for e in dbeventcursor:
 		# Setting the destination
 		if datetime.strftime(photodate, '%Y%m%d') == '19700101' and eventid == -1:
 			logging.info ('This file goes to the no-date folder')
-			eventpath = eventpath.replace('/Trash','/no_event',1)
-		dest = os.path.join (eventpath, photonewfilename)
+			eventpathF = eventpathF.replace('/Trash','/no_event',1)
+		dest = os.path.join (eventpathF, photonewfilename)
 		logging.info ("will be send to :" + dest)
 
 		# file operations
