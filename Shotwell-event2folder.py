@@ -7,7 +7,6 @@ from datetime import datetime
 
 DBpath = os.path.join(os.getenv('HOME'),".local/share/shotwell/data/photo.db")
 
-
 # ------ utils --------
 def itemcheck(a):
 	if os.path.isfile(a):
@@ -111,11 +110,11 @@ if mostrecentkbs > 0 :
 	acumulatedKb = 0
 	for entry in dballitemscursor:
 		acumulatedKb = acumulatedKb + entry[0]
-		print (acumulatedKb)
+		#print (acumulatedKb)
 		if acumulatedKb >= mostrecentkbs :
 			break
 	datelimit2move_exposure = datetime.fromtimestamp(entry[1])
-	logging.info ("Exposure time limited to " + str( entry[1]))
+	logging.info ("Files more recent than " + datelimit2move_exposure.strftime('%Y-%m-%d') + " will be send to " + librarymostrecentpath)
 	dballitemscursor.close()
 
 dbeventcursor = dbconnection.cursor ()
@@ -125,12 +124,20 @@ dbeventcursor.execute("INSERT INTO EventTable (id, name) VALUES (-1,'Trash')")
 dbeventcursor.execute('SELECT id,name FROM EventTable')
 for e in dbeventcursor:
 	# Retrieve event data
-	eventid, eventname = e
-	eventavgtime = dbconnection.execute('SELECT AVG(exposure_time) FROM PhotoTable WHERE event_id = ? and exposure_time is not null',(eventid,)).fetchone()[0]  # Average
-	if eventavgtime == None:
-		logging.debug ('\tEvent %s has no photos (is empty). Skipping.' % eventid)
+	eventid, eventname = e	
+	times = dbconnection.execute('SELECT exposure_time FROM videotable WHERE event_id = ? and exposure_time is not null UNION select exposure_time from phototable where event_id = ? and exposure_time is not null',(eventid,eventid))
+
+	#    calculating event date by average
+	suma, count = 0, 0 
+	for l in times:
+		count += 1 
+		suma += l[0]
+	if count == 0:
+		logging.debug ('\tEvent %s has no photos or videos (is empty). Skipping.' % eventid)
 		continue
+	eventavgtime = suma/count
 	eventtime = datetime.fromtimestamp(eventavgtime)
+
 	#  ....TODO.... Check for name inconsistences, and change not allowed characters.
 	if eventname == None : eventname = ""
 	print ("\nProcessing event:(" + str(eventid) + ") " + eventname)
@@ -164,7 +171,7 @@ for e in dbeventcursor:
 
 		# Check if file is in the last Kb to move to most recent dir.
 		if mostrecentkbs != 0 and photodate >= datelimit2move_exposure : 
-			logging.info ("File will be send to the recent pictures folder")
+			logging.info ("File will be sent to the recent pictures folder")
 			eventpathF = eventpathlast
 
 		# adding a folder to scan
