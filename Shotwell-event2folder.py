@@ -84,14 +84,28 @@ logging.basicConfig(
 )
 print ("logging to:", logging_file)
 
-# initializing vars
 
+# Logging the actual config
+logging.info ('Running with this configuraton:')
+parametersdyct = {
+'librarymainpath'		: 	librarymainpath,
+'dummy'					: 	dummy,
+'insertdateinfilename'	:	insertdateinfilename,
+'clearfolders'			:	clearfolders,
+'librarymostrecentpath'	:	librarymostrecentpath,
+'mostrecentkbs'			:	mostrecentkbs,
+}
+for a in parametersdyct:
+	logging.info (a+'\t'+' = '+ str (parametersdyct[a]))
+logging.info('')
+
+
+# initializing vars
 dummymsg = ''
 if dummy == True:
 	dummymsg = '(dummy mode)'
 
 foldercollection = set ()
-datelimit2move_import = datetime.now()
 datelimit2move_exposure = datetime.now()
 
 
