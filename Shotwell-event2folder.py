@@ -35,7 +35,7 @@ else:
 	f = open(userfileconfig,"w")
 	f.write ('''
 # Shotwell-event2folder Config file.
-# This options can be overriden by entering a command line options
+# This options can be overriden by entering a command line options (not yet implemented)
 # This is a python file. Be careful and see the sintaxt.
 
 librarymainpath = "%(home)s/Pictures"
@@ -43,7 +43,8 @@ dummy = False # Dummy mode. True will not perform any changes to DB or File stru
 insertdateinfilename = True  #  Filenames will be renamed with starting with a full-date expression
 clearfolders = True  # Delete empty folders
 librarymostrecentpath =  "%(home)s/Pictures/mostrecent"  # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
-mostrecentkbs = 2000000000  # Amount of max Kbs to send to the most recent picture path as destination. Set 0 if you do not want to send any pictures there.
+mostrecentkbs = 2000000000  # Amount of max Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there.
+importtitlefromfilenames = True  # Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.
 '''%{'home':os.getenv('HOME')}
 	)
 	f.close()
@@ -60,7 +61,69 @@ insertdateinfilename = Shotevent2folder_cfg.insertdateinfilename  #  Filenames w
 clearfolders = Shotevent2folder_cfg.clearfolders  # Delete empty folders
 librarymostrecentpath = Shotevent2folder_cfg.librarymostrecentpath    # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
 mostrecentkbs = Shotevent2folder_cfg.mostrecentkbs  # Amount of max Kbs to send to the most recent picture path as destination. Set 0 if you do not want to send any pictures there.
+importtitlefromfilenames = Shotevent2folder_cfg.importtitlefromfilenames  # Get a title from the filename and set it as title.
 
+
+# Functions
+def extracttitle (photofilename):
+	title = photofilename
+
+	# Discarding fulldate identifiers
+	expr = '[12]\d{3}[01]\d[0-3]\d[.-_ ]?[012]\d[0-5]\d[0-5]\d'
+	mo = re.search (expr, title)
+	try:
+		mo.group()
+	except:
+		logging.debug ("Fulldate expression was not found in %s" % title)
+	else:
+		logging.info ("Filename has a full date expression. Discarding this data on title.")
+		title = title [len(mo.group() ):]
+	
+	# Replacing empty spaces
+	title = title.strip()
+
+	# Discarding titles only made by numbers
+	expr = '\d*'
+	mo = re.search (expr, title)
+	try:
+		mo.group()
+	except:
+		pass
+	else:
+		logging.info ("Name is only made by numbers. Discarding this data on title.")
+		title = title [len(mo.group() ):]
+
+	if title == "":
+		title = None
+	logging.info ("The title for this file will be: " + str(title))
+	return title
+
+def Nextfilenumber (dest):
+	''' Returns the next filename counter as filename(nnn).ext
+	input: /path/to/filename.ext
+	output: /path/to/filename(n).ext
+		'''
+	filename = os.path.basename (dest)
+	extension = os.path.splitext (dest)[1]
+	# extract secuence
+	expr = '\(\d{1,}\)'+extension
+	mo = re.search (expr, filename)
+	try:
+		grupo = mo.group()
+	except:
+		#  print ("No final counter expression was found in %s. Counter is set to 0" % dest)
+		counter = 0
+		cut = len (extension)
+	else:
+		#  print ("Filename has a final counter expression.  (n).extension ")
+		cut = len (mo.group())
+		countergroup = (re.search ('\d{1,}', grupo))
+		counter = int (countergroup.group()) + 1
+	if cut == 0 :
+		newfilename = os.path.join( os.path.dirname(dest), filename + "(" + str(counter) + ")" + extension)
+	else:
+		newfilename = os.path.join( os.path.dirname(dest), filename [0:-cut] + "(" + str(counter) + ")" + extension)
+	return newfilename
 
 # ===============================
 # The logging module.
@@ -94,6 +157,7 @@ parametersdyct = {
 'clearfolders'			:	clearfolders,
 'librarymostrecentpath'	:	librarymostrecentpath,
 'mostrecentkbs'			:	mostrecentkbs,
+'importtitlefromfilenames':	importtitlefromfilenames,
 }
 for a in parametersdyct:
 	logging.info (a+'\t'+' = '+ str (parametersdyct[a]))
@@ -174,12 +238,12 @@ for e in dbeventcursor:
 
 	# retrieving event's photos and videos
 	dbtablecursor = dbconnection.cursor()
-	dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable FROM VideoTable WHERE event_id = ?",(eventid, eventid))
+	dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable, title  FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable, title FROM VideoTable WHERE event_id = ?",(eventid, eventid))
 
 	# Process each file
 	for p in dbtablecursor:
 		eventpathF = eventpath
-		photoid, photopath, phototitle, phototimestamp, import_id, DBTable = p
+		photoid, photopath, phototitle, phototimestamp, import_id, DBTable, phototitle = p
 		photodate = datetime.fromtimestamp(phototimestamp)
 		photodateimport = datetime.fromtimestamp(import_id)
 
@@ -222,6 +286,17 @@ for e in dbeventcursor:
 		if datetime.strftime(photodate, '%Y%m%d') == '19700101' and eventid == -1:
 			logging.info ('This file goes to the no-date folder')
 			eventpathF = eventpathF.replace('/Trash','/no_event',1)
+
+		# (option) import title from filenames
+		
+		if importtitlefromfilenames == True and phototitle == None:
+			phototitle = extracttitle (os.path.splitext(photofilename)[0])
+					# Changing Title pointer
+			if dummy == False:
+				dbconnection.execute ('UPDATE %s SET title = ? where id = ?' % DBTable, (phototitle, photoid))
+			logging.debug ("Entry %s, title updated at table %s. Title:%s %s" % (photoid, DBTable, phototitle, dummymsg))
+	
+
 		dest = os.path.join (eventpathF, photonewfilename)
 		logging.info ("will be send to :" + dest)
 
@@ -236,10 +311,10 @@ for e in dbeventcursor:
 			print (infomsg) ; logging.info (infomsg)
 			continue
 
-		if itemcheck (dest) != "":
-			infomsg = "File already exists at destination, Skipping."
-			print (infomsg) ; logging.info (infomsg)
-			continue
+		while itemcheck (dest) != "" :
+			infomsg = "File already exists at destination, assigning a new name."
+			dest = Nextfilenumber (dest)
+			logging.info (infomsg + " >> " + dest)
 
 		if itemcheck (os.path.dirname(dest)) == '':
 			os.makedirs (os.path.dirname(dest))
@@ -251,7 +326,7 @@ for e in dbeventcursor:
 		# Changing DB pointer
 		if dummy == False:
 			dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % DBTable, (dest, photoid))
-			logging.debug ("Entry %s updated at table %s.%s" % (photoid, DBTable, dummymsg))
+		logging.debug ("Entry %s updated at table %s. %s" % (photoid, DBTable, dummymsg))
 
 	dbtablecursor.close()
 
