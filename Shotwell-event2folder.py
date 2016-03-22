@@ -292,10 +292,11 @@ for e in dbeventcursor:
 		if importtitlefromfilenames == True and phototitle == None:
 			phototitle = extracttitle (os.path.splitext(photofilename)[0])
 					# Changing Title pointer
+			'''
 			if dummy == False:
 				dbconnection.execute ('UPDATE %s SET title = ? where id = ?' % DBTable, (phototitle, photoid))
 			logging.debug ("Entry %s, title updated at table %s. Title:%s %s" % (photoid, DBTable, phototitle, dummymsg))
-	
+			'''
 
 		dest = os.path.join (eventpathF, photonewfilename)
 		logging.info ("will be send to :" + dest)
