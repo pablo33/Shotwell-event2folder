@@ -69,33 +69,82 @@ def extracttitle (photofilename):
 	title = photofilename
 
 	# Discarding fulldate identifiers
-	expr = '[12]\d{3}[01]\d[0-3]\d[.-_ ]?[012]\d[0-5]\d[0-5]\d'
-	mo = re.search (expr, title)
-	try:
-		mo.group()
-	except:
-		logging.debug ("Fulldate expression was not found in %s" % title)
-	else:
-		logging.info ("Filename has a full date expression. Discarding this data on title.")
-		title = title [len(mo.group() ):]
+	for expr in ['[12]\d{3}[-._ ]?[01]\d[-._ ]?[0-3]\d[-._ ]?[012]\d[-._ ]?[0-5]\d[-._ ]?[0-5]\d',
+					'[12]\d{3}[-._ ]?[01]\d[-._ ]?[0-3]\d',
+					'[Ww][Aa]\d{4}',
+					'[12]\d{3}[-._ ]?[01]\d',]:
+		while True:
+			mo = re.search (expr, title)
+			try:
+				mo.group()
+			except:
+				logging.debug ("Fulldate expression was not found in %s" % title)
+				break
+			else:
+				logging.debug ("Filename has a full date expression. Discarding this data on title.")
+				title = title.replace(mo.group(),"")
+
 	
 	# Replacing empty spaces
 	title = title.strip()
 
+	# Replacing starting simbols & numbers
+	expr = '[0-9 ]?[-_#.%$ ]?[0-9 ]?'
+	while True:
+		mo = re.search (expr, title)
+		try:
+			mo.group()
+		except:
+			break
+		else:
+			if title.startswith (mo.group()):
+				logging.debug ("Discarding starting sybols and spaces.")
+				title = title [len (mo.group()): ]
+				if mo.group() == "":
+					break
+			else:
+				break
+
+	# Replacing ending simbols & numbers
+	for expr in [' [0-9]+', '[-_# ]+']:
+		while True:
+			mo = re.search (expr, title)
+			try:
+				mo.group()
+			except:
+				break
+			else:
+				if title.endswith (mo.group()):
+					logging.debug ("Discarding ending sybols and spaces.")
+					title = title [ : - len (mo.group())]
+					if mo.group() == "":
+						break
+				else:
+					break
+
+	# Replacing standalone known series
+	for expr in ["img", 'jpg', 'foto', 'image', 'photo', 'scan']:
+		if title.upper() == expr.upper():
+			logging.info ("Discarding known standalone serie:" + expr)
+			title = ""
+
+
 	# Discarding titles only made by numbers
-	expr = '\d*'
+	expr = '[1-9]*'
 	mo = re.search (expr, title)
 	try:
 		mo.group()
 	except:
 		pass
 	else:
-		logging.info ("Name is only made by numbers. Discarding this data on title.")
-		title = title [len(mo.group() ):]
+		if len (mo.group() ) == len (title):
+			logging.debug ("Name is only made by numbers. Discarding this data on title.")
+			title = ""
 
+	# Assigning a null value if title is empty
 	if title == "":
 		title = None
-	logging.info ("The title for this file will be: " + str(title))
+	logging.info ("The title for this entry will be: " + str(title))
 	return title
 
 def Nextfilenumber (dest):
