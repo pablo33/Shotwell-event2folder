@@ -2,6 +2,7 @@
 
 import sqlite3, os, sys, shutil, logging, re
 from datetime import datetime
+from gi.repository import GExiv2
 
 # ------- Set Variables ---------
 
@@ -45,6 +46,7 @@ clearfolders = True  # Delete empty folders
 librarymostrecentpath =  "%(home)s/Pictures/mostrecent"  # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
 mostrecentkbs = 2000000000  # Amount of max Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there.
 importtitlefromfilenames = True  # Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.
+inserttitlesinfiles = True  # Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title's in database is empty, it will set this retrieved title in both file, and database.
 '''%{'home':os.getenv('HOME')}
 	)
 	f.close()
@@ -62,7 +64,7 @@ clearfolders = Shotevent2folder_cfg.clearfolders  # Delete empty folders
 librarymostrecentpath = Shotevent2folder_cfg.librarymostrecentpath    # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
 mostrecentkbs = Shotevent2folder_cfg.mostrecentkbs  # Amount of max Kbs to send to the most recent picture path as destination. Set 0 if you do not want to send any pictures there.
 importtitlefromfilenames = Shotevent2folder_cfg.importtitlefromfilenames  # Get a title from the filename and set it as title.
-
+inserttitlesinfiles = Shotevent2folder_cfg.inserttitlesinfiles  # Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title's in database is empty, it will set this retrieved title in both file, and database.
 
 # Functions
 def extracttitle (photofilename):
@@ -287,14 +289,19 @@ for e in dbeventcursor:
 
 	# retrieving event's photos and videos
 	dbtablecursor = dbconnection.cursor()
-	dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable, title  FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable, title FROM VideoTable WHERE event_id = ?",(eventid, eventid))
+	dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable  FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable FROM VideoTable WHERE event_id = ?",(eventid, eventid))
 
 	# Process each file
 	for p in dbtablecursor:
 		eventpathF = eventpath
-		photoid, photopath, phototitle, phototimestamp, import_id, DBTable, phototitle = p
+		photoid, photopath, phototitle, phototimestamp, import_id, DBTable = p
 		photodate = datetime.fromtimestamp(phototimestamp)
 		photodateimport = datetime.fromtimestamp(import_id)
+
+		if itemcheck (photopath) != "file":
+			infomsg = "Image in database is not present at this time. Doing nothing."
+			print (infomsg) ; logging.info (infomsg)
+			continue
 
 		# Check if file is in the last Kb to move to most recent dir.
 		if mostrecentkbs != 0 and photodate >= datelimit2move_exposure : 
@@ -306,7 +313,7 @@ for e in dbeventcursor:
 		logging.debug (os.path.dirname(photopath) + ' added to folders list')
 		# defining filename
 		photofilename = os.path.basename(photopath)
-		infomsg = "Processing(" + str(photoid) + ") filename: " + photofilename
+		infomsg = "# Processing(" + str(photoid) + ") filename: " + photofilename
 		print (infomsg) ; logging.info (infomsg)
 
 		photonewfilename = photofilename
@@ -318,13 +325,12 @@ for e in dbeventcursor:
 			try:
 				mo.group()
 			except:
-				logging.debug ("Fulldate expression was not found in %s" % photofilename)
+				logging.debug ("Predefined fulldate expression was not found in %s" % photofilename)
 				sep = " "
 			else:
 				logging.debug ("Filename already starts with a full date expression")
 				logging.debug ("updating date on filename")
 				photofilename = photofilename [len(mo.group() ):]
-				print (photofilename, mo.group(), len (mo.group()))
 
 			photonewfilename = datetime.strftime(photodate, '%Y%m%d_%H%M%S') + sep + photofilename
 			logging.info ("Filename will be renamed as: %s" % photonewfilename)
@@ -337,7 +343,6 @@ for e in dbeventcursor:
 			eventpathF = eventpathF.replace('/Trash','/no_event',1)
 
 		# (option) import title from filenames
-		
 		if importtitlefromfilenames == True and phototitle == None:
 			phototitle = extracttitle (os.path.splitext(photofilename)[0])
 					# Changing Title pointer
@@ -345,17 +350,37 @@ for e in dbeventcursor:
 				dbconnection.execute ('UPDATE %s SET title = ? where id = ?' % DBTable, (phototitle, photoid))
 			logging.debug ("Entry %s, title updated at table %s. Title:%s %s" % (photoid, DBTable, phototitle, dummymsg))
 
+		# writting titles from database to file
+		# ----  TODO  ----
+		# database title = Extracted title = phototitle
+		if inserttitlesinfiles == True and phototitle != None:
+			try:
+				image_metadata = GExiv2.Metadata(photopath)
+			except:
+				logging.warning ('An error occurred during obtaining metadata on this file')
+				print ('An error occurred during obtaining metadata on this file')
+			else:
+				if image_metadata.get('Iptc.Application2.Caption') != phototitle:
+					mydictofmetadatas = {
+					'Iptc.Application2.Caption': phototitle,
+					'Iptc.Application2.Headline': phototitle,
+					'Xmp.dc.title': 'lang="x-default" ' + phototitle,
+					'Xmp.photoshop.Headline' : phototitle,
+					}
+
+					for x in mydictofmetadatas:
+						image_metadata.set_tag_string (x, mydictofmetadatas[x])
+					if dummy == False :
+						image_metadata.save_file()
+					infomsg = "Image title metadata has been updated with database title: " + phototitle + dummymsg
+					print (infomsg) ; logging.info (infomsg)
+						
 		dest = os.path.join (eventpathF, photonewfilename)
 		logging.info ("will be send to :" + dest)
 
 		# file operations
-		if itemcheck (photopath) != "file":
-			infomsg = "Image in database is not present at this time. Doing nothing."
-			print (infomsg) ; logging.info (infomsg)
-			continue
-
 		if photopath == dest :
-			infomsg = "This file is already on its destination. Doing nothing."
+			infomsg = "This file is already on its destination. This file remains on its place."
 			print (infomsg) ; logging.info (infomsg)
 			continue
 
