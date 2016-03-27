@@ -45,8 +45,8 @@ insertdateinfilename = True  #  Filenames will be renamed with starting with a f
 clearfolders = True  # Delete empty folders
 librarymostrecentpath =  "%(home)s/Pictures/mostrecent"  # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
 mostrecentkbs = 2000000000  # Amount of max Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there.
-importtitlefromfilenames = True  # Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.
-inserttitlesinfiles = True  # Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title's in database is empty, it will set this retrieved title in both file, and database.
+importtitlefromfilenames = False  # Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.
+inserttitlesinfiles = False  # Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title's in database is empty, it will set this retrieved title in both file, and database.
 '''%{'home':os.getenv('HOME')}
 	)
 	f.close()
