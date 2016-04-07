@@ -6,7 +6,7 @@ This is a python3 script intended to reorder your shotwell library files to an e
 Shotwell can get photo-files from any location, and you can assign each file to an event. But these files will remain on its source storage.
 This script will reorder your files in your file system based on shotwell events.
 
-This script will process shotwell DB and make the changes.
+This script will process shotwell DB and commit the changes.
 
 **Dependencies:**
 
@@ -17,3 +17,7 @@ it has been tesded with Shotwell 0.18.0 (ubuntu 14-10)
 Just launch the script from command line
 
 	$ python3 Shotwell-event2folder.py
+
+
+See wiki page for further information. 
+[https://github.com/pablo33/Shotwell-event2folder/wiki](https://github.com/pablo33/Shotwell-event2folder/wiki)
