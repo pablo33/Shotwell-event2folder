@@ -272,7 +272,7 @@ if __name__ == '__main__':
 
 		#  ....TODO.... Check for name inconsistences, and change not allowed characters.
 		if eventname == None : eventname = ""
-		print ("\nProcessing event:(" + str(eventid) + ") " + eventname)
+		print ("\n\n======================\nProcessing event:(" + str(eventid) + ") " + eventname)
 		logging.info ('')
 		logging.info ('## Processing event nº' + str(eventid) + ", " + eventname + "(" + str(eventtime) + ")")
 
@@ -302,7 +302,7 @@ if __name__ == '__main__':
 			photodateimport = datetime.fromtimestamp(import_id)
 
 			if itemcheck (photopath) != "file":
-				infomsg = "Image in database is not present at this time. Doing nothing."
+				infomsg = "! Image in database is not present at this time. Doing nothing."
 				print (infomsg) ; logging.info (infomsg)
 				continue
 
@@ -354,14 +354,14 @@ if __name__ == '__main__':
 				logging.debug ("Entry %s, title updated at table %s. Title:%s %s" % (photoid, DBTable, phototitle, dummymsg))
 
 			# writting titles from database to file
-			# ----  TODO  ----
 			# database title = Extracted title = phototitle
-			if inserttitlesinfiles == True and phototitle != None:
+			fileextension = os.path.splitext (photofilename)[1]
+			if inserttitlesinfiles == True and phototitle != None and fileextension.lower() in ['.jpg']:
 				try:
 					image_metadata = GExiv2.Metadata(photopath)
 				except:
-					logging.warning ('An error occurred during obtaining metadata on this file')
-					print ('An error occurred during obtaining metadata on this file')
+					infomsg = '\tAn error occurred during obtaining metadata on this file'
+					print (infomsg); logging.info (infomsg)
 				else:
 					if image_metadata.get('Iptc.Application2.Caption') != phototitle:
 						mydictofmetadatas = {
@@ -375,7 +375,7 @@ if __name__ == '__main__':
 							image_metadata.set_tag_string (x, mydictofmetadatas[x])
 						if dummy == False :
 							image_metadata.save_file()
-						infomsg = "Image title metadata has been updated with database title: " + phototitle + dummymsg
+						infomsg = "\tImage title metadata has been updated with database title: " + phototitle + dummymsg
 						print (infomsg) ; logging.info (infomsg)
 							
 			dest = os.path.join (eventpathF, photonewfilename)
@@ -384,7 +384,7 @@ if __name__ == '__main__':
 			# file operations
 			if photopath == dest :
 				infomsg = "This file is already on its destination. This file remains on its place."
-				print (infomsg) ; logging.info (infomsg)
+				logging.info (infomsg)
 				continue
 
 			while itemcheck (dest) != "" :
@@ -394,10 +394,10 @@ if __name__ == '__main__':
 
 			if itemcheck (os.path.dirname(dest)) == '':
 				os.makedirs (os.path.dirname(dest))
-			print ("\tmoved.",)
 			if dummy == False:
 				shutil.move (photopath, dest)
-			logging.info ("file has been moved. %s" %dummymsg)
+			infomsg = "\tfile has been moved. %s" %dummymsg
+			print (infomsg); logging.info (infomsg)
 
 			# Changing DB pointer
 			if dummy == False:
