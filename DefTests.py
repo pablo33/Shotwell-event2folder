@@ -78,6 +78,7 @@ class extracttitle_test (unittest.TestCase):
 		('20101213-230005Wa2244 my title', 'my title'),				# titles made by numbers are not allowed
 		('MVI_1234 my title', 'my title'),
 		('my title - MVI_1234 ', 'my title'),
+		('123456789 - my title - MVI_1234 ', 'my title'),
 		)
 
 	def test_known_input (self):

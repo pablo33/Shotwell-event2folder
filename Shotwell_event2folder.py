@@ -322,7 +322,7 @@ if __name__ == '__main__':
 			photonewfilename = photofilename
 			# checking a starting date in filename
 			sep = ""
-			if insertdateinfilename == True and phototimestamp != None:
+			if insertdateinfilename == True and phototimestamp != None and eventid != -1:
 				expr = '[12]\d{3}[01]\d[0-3]\d[.-_ ]?[012]\d[0-5]\d[0-5]\d'
 				mo = re.search (expr, photofilename)
 				try:
@@ -334,6 +334,8 @@ if __name__ == '__main__':
 					logging.debug ("Filename already starts with a full date expression")
 					logging.debug ("updating date on filename")
 					photofilename = photofilename [len(mo.group() ):]
+					if photofilename[0].lower() in '1234567809qwertyuiopasdfghjklñzxcvbnm':
+						sep = " "
 
 				photonewfilename = datetime.strftime(photodate, '%Y%m%d_%H%M%S') + sep + photofilename
 				logging.info ("Filename will be renamed as: %s" % photonewfilename)
@@ -398,6 +400,7 @@ if __name__ == '__main__':
 				shutil.move (photopath, dest)
 			infomsg = "\tfile has been moved. %s" %dummymsg
 			print (infomsg); logging.info (infomsg)
+			print ('\tfinal filename:', photonewfilename, '\n')
 
 			# Changing DB pointer
 			if dummy == False:
