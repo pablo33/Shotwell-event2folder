@@ -135,7 +135,7 @@ class TestPack1 (unittest.TestCase):
 			'TESTS/Test1/Lastphotospath/2016/2016-06-18/20160618_224303 4302.jpg',
 			'TESTS/Test1/Lastphotospath/2016/2016-06-22',
 			'TESTS/Test1/Lastphotospath/2016/2016-06-22/20160622_141158-VID_20160622_141158.3gp',
-			'TESTS/Test1/Lastphotospath/2016/2016-06-22/20160622_141203-IMG_20160622_141202.jpg',
+			'TESTS/Test1/Lastphotospath/2016/2016-06-22/20160622_141203 No date on filename.jpg',
 			])
 
 		result = FetchFileSet (self.testfolder)
