@@ -124,6 +124,8 @@ def extracttitle (photofilename):
 	return title
 
 def filemove (origin, dest):
+	if itemcheck (origin) != 'file':
+		return None
 	while itemcheck (dest) != "" :
 		infomsg = "File already exists at destination, assigning a new name."
 		dest = Nextfilenumber (dest)
@@ -406,18 +408,30 @@ if __name__ == '__main__':
 			else:
 				#moving files from photopath to dest
 				dest = filemove (photopath, dest)
-
 				# Changing DB pointer
 				if dummy == False:
 					dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % DBTable, (dest, photoid))
 				logging.debug ("Entry %s updated at table %s. %s" % (photoid, DBTable, dummymsg))
+			
+			if editable_id != -1:
+				editable_photo = dbconnection.execute ('SELECT filepath FROM BackingPhotoTable WHERE id = %s' %editable_id).fetchone()[0]
+				editable_dest = os.path.splitext(dest)[0]+'_modified'+os.path.splitext(dest)[1]
+				if os.path.dirname(editable_photo) == os.path.dirname(editable_dest) and editable_photo == editable_dest:
+					infomsg = "This file is already on its destination. This file remains on its place."
+					logging.info (infomsg)			
+				else:
+					#moving files from editable_photo to editable_dest
+					result = filemove (editable_photo, editable_dest)
+					if result != None:
+						editable_dest = result
+						# Changing DB pointer
+						if dummy == False:
+							dbconnection.execute ('UPDATE BackingPhotoTable SET filepath = ? where id = ?', (editable_dest, editable_id))
+						logging.debug ("Entry %s updated at table %s. %s" % (editable_id, 'BackingPhotoTable', dummymsg))
+					else:
+						infomsg = 'Cannot find editable file id(%s): %s'%(editable_id,editable_photo)
+						logging.warning (infomsg)
 
-			'''if editable_id != -1:
-				editablephoto = dbconnection.execute ('SELECT filepath FROM .......')
-				editable_dest = filemove (editablephoto, editable_dest)
-				if os.path.dirname(editablephoto) != os.path.dirname(photopath) or editablephoto != editable_dest:
-					---- make movements ----
-				'''
 
 		dbtablecursor.close()
 
