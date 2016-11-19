@@ -36,7 +36,6 @@ def itemcheck(pointer):
 		return 'link'
 	return ""
 
-
 def Nextfilenumber (dest):
 	''' Returns the next filename counter as filename(nnn).ext
 	input: /path/to/filename.ext
@@ -65,7 +64,6 @@ def Nextfilenumber (dest):
 	else:
 		newfilename = os.path.join( os.path.dirname(dest), filename [0:-cut] + "(" + str(counter) + ")" + extension)
 	return newfilename
-
 
 # Functions
 def extracttitle (photofilename):
@@ -125,6 +123,19 @@ def extracttitle (photofilename):
 	logging.info ("The title for this entry will be: " + str(title))
 	return title
 
+def filemove (origin, dest):
+	while itemcheck (dest) != "" :
+		infomsg = "File already exists at destination, assigning a new name."
+		dest = Nextfilenumber (dest)
+		logging.info (infomsg + " >> " + dest)
+
+	if itemcheck (os.path.dirname(dest)) == '':
+		os.makedirs (os.path.dirname(dest))
+	if dummy == False:
+		shutil.move (origin, dest)
+	infomsg = "\tfile has been moved. %s" %dummymsg
+	print (infomsg); logging.info (infomsg)
+	return dest
 
 
 
@@ -246,7 +257,7 @@ if __name__ == '__main__':
 			if acumulatedKb >= mostrecentkbs :
 				break
 		datelimit2move_exposure = datetime.fromtimestamp(entry[1])
-		logging.info ("Files more recent than " + datelimit2move_exposure.strftime('%Y-%m-%d') + " will be send to " + librarymostrecentpath)
+		logging.info ("Files more recent than " + datelimit2move_exposure.strftime('%Y-%m-%d') + " will be sent to " + librarymostrecentpath)
 		dballitemscursor.close()
 
 	dbeventcursor = dbconnection.cursor ()
@@ -292,12 +303,12 @@ if __name__ == '__main__':
 
 		# retrieving event's photos and videos
 		dbtablecursor = dbconnection.cursor()
-		dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable  FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable FROM VideoTable WHERE event_id = ?",(eventid, eventid))
+		dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable, editable_id  FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable, -1 AS editable_id FROM VideoTable WHERE event_id = ?",(eventid, eventid))
 
 		# Process each file
 		for p in dbtablecursor:
 			eventpathF = eventpath
-			photoid, photopath, phototitle, phototimestamp, import_id, DBTable = p
+			photoid, photopath, phototitle, phototimestamp, import_id, DBTable, editable_id = p
 			photodate = datetime.fromtimestamp(phototimestamp)
 			photodateimport = datetime.fromtimestamp(import_id)
 
@@ -316,7 +327,11 @@ if __name__ == '__main__':
 			logging.debug (os.path.dirname(photopath) + ' added to folders list')
 			# defining filename
 			photofilename = os.path.basename(photopath)
-			infomsg = "# Processing(" + str(photoid) + ") filename: " + photofilename
+			if editable_id != -1:
+				editablestring = "Editable id:(" + str(editable_id) + ")"
+			else:
+				editablestring = ''
+			infomsg = "# Processing(" + str(photoid) + ") "+ editablestring + " filename: " + photofilename
 			print (infomsg) ; logging.info (infomsg)
 
 			photonewfilename = photofilename
@@ -381,31 +396,28 @@ if __name__ == '__main__':
 						print (infomsg) ; logging.info (infomsg)
 							
 			dest = os.path.join (eventpathF, photonewfilename)
-			logging.info ("will be send to :" + dest)
+			logging.info ("will be sent to :" + dest)
 
 			# file operations
-			if photopath == dest :
+
+			if photopath == dest:
 				infomsg = "This file is already on its destination. This file remains on its place."
 				logging.info (infomsg)
-				continue
+			else:
+				#moving files from photopath to dest
+				dest = filemove (photopath, dest)
 
-			while itemcheck (dest) != "" :
-				infomsg = "File already exists at destination, assigning a new name."
-				dest = Nextfilenumber (dest)
-				logging.info (infomsg + " >> " + dest)
+				# Changing DB pointer
+				if dummy == False:
+					dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % DBTable, (dest, photoid))
+				logging.debug ("Entry %s updated at table %s. %s" % (photoid, DBTable, dummymsg))
 
-			if itemcheck (os.path.dirname(dest)) == '':
-				os.makedirs (os.path.dirname(dest))
-			if dummy == False:
-				shutil.move (photopath, dest)
-			infomsg = "\tfile has been moved. %s" %dummymsg
-			print (infomsg); logging.info (infomsg)
-			print ('\tfinal filename:', photonewfilename, '\n')
-
-			# Changing DB pointer
-			if dummy == False:
-				dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % DBTable, (dest, photoid))
-			logging.debug ("Entry %s updated at table %s. %s" % (photoid, DBTable, dummymsg))
+			'''if editable_id != -1:
+				editablephoto = dbconnection.execute ('SELECT filepath FROM .......')
+				editable_dest = filemove (editablephoto, editable_dest)
+				if os.path.dirname(editablephoto) != os.path.dirname(photopath) or editablephoto != editable_dest:
+					---- make movements ----
+				'''
 
 		dbtablecursor.close()
 
