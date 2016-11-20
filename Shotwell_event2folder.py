@@ -331,9 +331,6 @@ if __name__ == '__main__':
 				logging.info ("File will be sent to the recent pictures folder")
 				eventpathF = eventpathlast
 
-			# adding a folder to scan
-			foldercollection.add (os.path.dirname(photopath))	
-			logging.debug (os.path.dirname(photopath) + ' added to folders list')
 			# defining filename
 			photofilename = os.path.basename(photopath)
 			if editable_id != -1:
@@ -415,9 +412,15 @@ if __name__ == '__main__':
 			else:
 				#moving files from photopath to dest
 				dest = filemove (photopath, dest)
+	
 				# Changing DB pointer
 				if dummy == False:
 					dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % DBTable, (dest, photoid))
+	
+				# adding a folder to scan
+				foldercollection.add (os.path.dirname(photopath))	
+				logging.debug (os.path.dirname(photopath) + ' added to folders list')
+	
 				logging.debug ("Entry %s updated at table %s. %s" % (photoid, DBTable, dummymsg))
 			
 			if editable_id != -1:
