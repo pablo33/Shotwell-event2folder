@@ -168,7 +168,7 @@ if __name__ == '__main__':
 	insertdateinfilename = True  #  Filenames will be renamed with starting with a full-date expression
 	clearfolders = True  # Delete empty folders
 	librarymostrecentpath =  "%(home)s/Pictures/mostrecent"  # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
-	mostrecentkbs = 2000000000  # Amount of max Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there.
+	mostrecentkbs = 2000000000  # Max amount of Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there.
 	importtitlefromfilenames = False  # Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.
 	inserttitlesinfiles = False  # Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title's in database is empty, it will set this retrieved title in both file, and database.
 	'''%{'home':os.getenv('HOME')}
@@ -189,7 +189,6 @@ if __name__ == '__main__':
 	mostrecentkbs = Shotevent2folder_cfg.mostrecentkbs  # Amount of max Kbs to send to the most recent picture path as destination. Set 0 if you do not want to send any pictures there.
 	importtitlefromfilenames = Shotevent2folder_cfg.importtitlefromfilenames  # Get a title from the filename and set it as title.
 	inserttitlesinfiles = Shotevent2folder_cfg.inserttitlesinfiles  # Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title's in database is empty, it will set this retrieved title in both file, and database.
-
 
 
 	# ===============================
@@ -247,6 +246,14 @@ if __name__ == '__main__':
 		exit()
 
 	dbconnection = sqlite3.connect (DBpath)
+
+	__Schema__, __appversion__ = dbconnection.execute ("SELECT schema_version, app_version FROM versiontable").fetchone()
+	if __Schema__ != 20 :
+		print ("This utility may not work properly with an Shotwell DataBase Schema other than 20")
+		print ("It is recomended use Shotwell with this schema: Shotwell version 0.22.0 or 0.24")
+		print ("Actual DB Schema is %s"%__Schema__)
+		print ("Actual Shotwell Version %s"%__appversion__)
+		exit ()
 
 	# Set the more recent Kbs of data and stablishing the limit to move if any.
 	if mostrecentkbs > 0 :
@@ -401,10 +408,10 @@ if __name__ == '__main__':
 			logging.info ("will be sent to :" + dest)
 
 			# file operations
-
 			if photopath == dest:
 				infomsg = "This file is already on its destination. This file remains on its place."
 				logging.info (infomsg)
+				continue
 			else:
 				#moving files from photopath to dest
 				dest = filemove (photopath, dest)
@@ -418,12 +425,15 @@ if __name__ == '__main__':
 				editable_dest = os.path.splitext(dest)[0]+'_modified'+os.path.splitext(dest)[1]
 				if os.path.dirname(editable_photo) == os.path.dirname(editable_dest) and editable_photo == editable_dest:
 					infomsg = "This file is already on its destination. This file remains on its place."
-					logging.info (infomsg)			
+					logging.info (infomsg)
+					continue			
 				else:
 					#moving files from editable_photo to editable_dest
 					result = filemove (editable_photo, editable_dest)
 					if result != None:
 						editable_dest = result
+						foldercollection.add (os.path.dirname(editable_photo))
+						logging.debug (os.path.dirname(editable_photo) + ' added to folders list')
 						# Changing DB pointer
 						if dummy == False:
 							dbconnection.execute ('UPDATE BackingPhotoTable SET filepath = ? where id = ?', (editable_dest, editable_id))
@@ -431,7 +441,6 @@ if __name__ == '__main__':
 					else:
 						infomsg = 'Cannot find editable file id(%s): %s'%(editable_id,editable_photo)
 						logging.warning (infomsg)
-
 
 		dbtablecursor.close()
 
