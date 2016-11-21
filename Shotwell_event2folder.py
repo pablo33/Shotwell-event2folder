@@ -18,7 +18,9 @@ class EmptyStringError(ValueError):
 
 
 
-DBpath = os.path.join(os.getenv('HOME'),".local/share/shotwell/data/photo.db")
+DBpath = os.path.join(os.getenv('HOME'),".local/share/shotwell/data/photo.db")  # Path where Shotwell DB is.
+Th128path = os.path.join(os.getenv('HOME'),".cache/shotwell/thumbs/thumbs128")  # Path where thumbnails are stored.
+Th360path = os.path.join(os.getenv('HOME'),".cache/shotwell/thumbs/thumbs360")  # Path where thumbnails are stored.
 
 # ------ utils --------
 def itemcheck(pointer):
@@ -139,6 +141,35 @@ def filemove (origin, dest):
 	print (infomsg); logging.info (infomsg)
 	return dest
 
+def Thumbfilepath (ID):
+	""" This function returns the full-filepath of the thumbnails given an id
+		Thumbs are composed by the ID of the file filled with Zeroes at a length of 16.
+		ID are expressed in Hex. This is the mask:
+		# thumb000000000000000f
+		Paths are expressed as follows (ID = 10)
+		~/.cache/shotwell/thumbs/thumbs128/thumb000000000000000a.jpg
+		~/.cache/shotwell/thumbs/thumbs360/thumb000000000000000a.jpg
+
+		Paths to thumbnails folders are global vars. (Th128path, Th360path)
+		"""
+	if type(ID) is not int:
+		raise NotIntegerError(ID)
+	if ID < 1 :
+		raise OutOfRangeError(ID)
+
+	thumb = 'thumb%016x'%ID + ".jpg"
+	Path128 = os.path.join(Th128path,thumb)
+	Path360 = os.path.join(Th360path,thumb)
+	return (Path128,Path360)
+
+def Deletethumb (ID):
+	for f in Thumbfilepath(ID):
+		if itemcheck(f) == 'file':
+			if dummy == False:
+				os.remove (f)
+			infomsg = ('Thumbfile for ID (%s) has been removed'%ID)
+			print (infomsg)
+			logging.info (infomsg)
 
 
 if __name__ == '__main__':
@@ -403,6 +434,12 @@ if __name__ == '__main__':
 							
 			dest = os.path.join (eventpathF, photonewfilename)
 			logging.info ("will be sent to :" + dest)
+
+			## Deletes thumbnails due a condition. Shotwell will restore deleted thumbnails
+			'''
+			if editable_id != -1:
+				Deletethumb (photoid)
+				'''
 
 			# file operations
 			if photopath == dest:

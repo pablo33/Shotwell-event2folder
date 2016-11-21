@@ -3,6 +3,7 @@
 import unittest
 import Shotwell_event2folder
 import datetime
+import os
 
 
 
@@ -85,6 +86,35 @@ class extracttitle_test (unittest.TestCase):
 		for inputfile, outputfile in self.known_values:
 			result = TM.extracttitle (inputfile)
 			self.assertEqual (outputfile, result)
+
+
+class Thumbfilepath (unittest.TestCase):
+	""" Given a ID, it returns a full-filepath to its thumbnails """
+	thumbsfolder = os.getenv('HOME')+'/.cache/shotwell/thumbs/'
+
+	known_values = (
+		(1, (thumbsfolder+'thumbs128/thumb0000000000000001.jpg',thumbsfolder+'thumbs360/thumb0000000000000001.jpg')),
+		(2, (thumbsfolder+'thumbs128/thumb0000000000000002.jpg',thumbsfolder+'thumbs360/thumb0000000000000002.jpg')),
+		(100, (thumbsfolder+'thumbs128/thumb0000000000000064.jpg',thumbsfolder+'thumbs360/thumb0000000000000064.jpg')),
+		(1555, (thumbsfolder+'thumbs128/thumb0000000000000613.jpg',thumbsfolder+'thumbs360/thumb0000000000000613.jpg')),
+		)
+
+	def test_known_input (self):
+		for inputvalue, expectedvalue in self.known_values:
+			result = TM.Thumbfilepath (inputvalue)
+			self.assertEqual (expectedvalue, result)
+
+	def test_Thumbfilepathexeptions (self):
+		''' only numbers are addmitted as input '''
+		sample_bad_values = ("58", "33", True)
+		for values in sample_bad_values:
+			self.assertRaises (TM.NotIntegerError, TM.Thumbfilepath, values)
+
+		sample_bad_values = (-1, 0, -32323)
+		for values in sample_bad_values:
+			self.assertRaises (TM.OutOfRangeError, TM.Thumbfilepath, values)
+
+
 
 
 
