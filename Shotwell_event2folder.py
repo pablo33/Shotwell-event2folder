@@ -18,9 +18,10 @@ class EmptyStringError(ValueError):
 
 
 
-DBpath = os.path.join(os.getenv('HOME'),".local/share/shotwell/data/photo.db")  # Path where Shotwell DB is.
-Th128path = os.path.join(os.getenv('HOME'),".cache/shotwell/thumbs/thumbs128")  # Path where thumbnails are stored.
-Th360path = os.path.join(os.getenv('HOME'),".cache/shotwell/thumbs/thumbs360")  # Path where thumbnails are stored.
+UserHomePath = os.getenv('HOME')
+DBpath = os.path.join(UserHomePath,".local/share/shotwell/data/photo.db")  # Path where Shotwell DB is expected to be.
+Th128path = os.path.join(UserHomePath,".cache/shotwell/thumbs/thumbs128")  # Path where thumbnails are stored.
+Th360path = os.path.join(UserHomePath,".cache/shotwell/thumbs/thumbs360")  # Path where thumbnails are stored.
 
 # ------ utils --------
 def itemcheck(pointer):
@@ -163,6 +164,8 @@ def Thumbfilepath (ID):
 	return (Path128,Path360)
 
 def Deletethumb (ID):
+	""" This function deletes thumbnails given an ID
+		"""
 	for f in Thumbfilepath(ID):
 		if itemcheck(f) == 'file':
 			if dummy == False:
@@ -176,14 +179,14 @@ if __name__ == '__main__':
 
 	# Load user config:
 	# Getting user folder to place log files....
-	userpath = os.path.join(os.getenv('HOME'),".Shotwell-event2folder")
-	userfileconfig = os.path.join(userpath,"Shotevent2folder_cfg.py")
-	if itemcheck (userpath) != "folder":
-		os.makedirs(userpath)
+	appuserpath= os.path.join(UserHomePath,".Shotwell-event2folder")
+	userfileconfig = os.path.join(appuserpath,"Shotevent2folder_cfg.py")
+	if itemcheck (appuserpath) != "folder":
+		os.makedirs(appuserpath)
 
 	if itemcheck (userfileconfig) == "file":
 		print ("Loading user configuration....")
-		sys.path.append(userpath)
+		sys.path.append(appuserpath)
 		import Shotevent2folder_cfg
 	else:
 		print ("There isn't an user config file: " + userfileconfig)
@@ -202,7 +205,7 @@ if __name__ == '__main__':
 	mostrecentkbs = 2000000000  # Max amount of Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there.
 	importtitlefromfilenames = False  # Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.
 	inserttitlesinfiles = False  # Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title's in database is empty, it will set this retrieved title in both file, and database.
-	'''%{'home':os.getenv('HOME')}
+	'''%{'home':UserHomePath}
 		)
 		f.close()
 		print ("Your user config file has been created at:", userfileconfig)
@@ -211,7 +214,7 @@ if __name__ == '__main__':
 		os.system ("gedit " + userfileconfig)
 		exit()
 
-	# Getting variables.
+	# Getting variables from user's config file
 	librarymainpath = Shotevent2folder_cfg.librarymainpath
 	dummy = Shotevent2folder_cfg.dummy  # Dummy mode. True will not perform any changes to DB or File structure 
 	insertdateinfilename = Shotevent2folder_cfg.insertdateinfilename  #  Filenames will be renamed with starting with a full-date expression
@@ -225,7 +228,7 @@ if __name__ == '__main__':
 	# ===============================
 	# The logging module.
 	# ===============================
-	loginlevel = 'DEBUG'
+	loginlevel = 'INFO'
 	logpath = './'
 	logging_file = os.path.join(logpath, 'Shotwell-event2folder.log')
 
@@ -261,7 +264,7 @@ if __name__ == '__main__':
 	logging.info('')
 
 
-	# initializing vars
+	# initializing global execution vars
 	dummymsg = ''
 	if dummy == True:
 		dummymsg = '(dummy mode)'
@@ -281,7 +284,7 @@ if __name__ == '__main__':
 	__Schema__, __appversion__ = dbconnection.execute ("SELECT schema_version, app_version FROM versiontable").fetchone()
 	if __Schema__ != 20 :
 		print ("This utility may not work properly with an Shotwell DataBase Schema other than 20")
-		print ("It is recomended use Shotwell with this schema: Shotwell version 0.22.0 or 0.24")
+		print ("DB schema 20 is used on Shotwell version 0.22 or 0.24")
 		print ("Actual DB Schema is %s"%__Schema__)
 		print ("Actual Shotwell Version %s"%__appversion__)
 		exit ()
@@ -297,7 +300,7 @@ if __name__ == '__main__':
 			if acumulatedKb >= mostrecentkbs :
 				break
 		datelimit2move_exposure = datetime.fromtimestamp(entry[1])
-		logging.info ("Files more recent than " + datelimit2move_exposure.strftime('%Y-%m-%d') + " will be sent to " + librarymostrecentpath)
+		logging.info ("Files earlier than " + datelimit2move_exposure.strftime('%Y-%m-%d') + " will be sent to " + librarymostrecentpath)
 		dballitemscursor.close()
 
 	dbeventcursor = dbconnection.cursor ()
