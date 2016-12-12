@@ -1,8 +1,11 @@
 #!/usr/bin/python3
 
-import sqlite3, os, sys, shutil, logging, re
+import sqlite3, os, sys, shutil, logging, re, time
 from datetime import datetime
 from gi.repository import GExiv2
+from subprocess import check_output  # Checks if shotwell is active or not
+
+
 
 # ------- Set Variables ---------
 class OutOfRangeError(ValueError):
@@ -174,6 +177,30 @@ def Deletethumb (ID):
 			print (infomsg)
 			logging.info (infomsg)
 
+def get_pid (app):
+	''' returns None if the aplication is not running, or
+		returns application PID if the aplication is running 
+		'''
+	try:
+		pids = check_output(["pidof", app ])
+	except:
+		logging.debug('no %s app is currently running'%(app))
+		return None
+	pidlist = pids.split()
+	la = lambda x : int(x)
+	pidlist = list (map (la , pidlist))
+	return pidlist
+
+def getappstatus (app):
+	''' Given a list of names's process, it checks if there is any instance running
+		DefTest >> OK'''
+	state = False
+	for entry in app:
+		if get_pid (entry) != None:
+			state = True
+			break
+	return state
+
 
 if __name__ == '__main__':
 
@@ -278,6 +305,18 @@ if __name__ == '__main__':
 		infomsg = 'Shotwell Database is not present, this script is intended to work on a Shotwell Database located at:\n' + DBpath
 		print (infomsg) ; logging.info (infomsg)
 		exit()
+
+	countdown = 12
+	while getappstatus (['shotwell']):
+		infomsg = 'warning, Shotwell process is alive, Please consider close this aplication.'
+		print (infomsg) ; logging.info ('('+str(countdown)+')' + infomsg)
+		print (countdown, 'retries left to exit')
+		countdown -= 1
+		if countdown < 0:
+			exit()
+		time.sleep (10)
+	del countdown, time, check_output
+
 
 	dbconnection = sqlite3.connect (DBpath)
 
