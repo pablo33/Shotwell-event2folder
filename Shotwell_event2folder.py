@@ -137,11 +137,11 @@ def filemove (origin, dest):
 		dest = Nextfilenumber (dest)
 		logging.info (infomsg + " >> " + dest)
 
-	if itemcheck (os.path.dirname(dest)) == '':
-		os.makedirs (os.path.dirname(dest))
 	if dummy == False:
+		if itemcheck (os.path.dirname(dest)) == '':
+			os.makedirs (os.path.dirname(dest))
 		shutil.move (origin, dest)
-	infomsg = "\tfile has been moved. %s" %dummymsg
+		infomsg = "\tfile has been moved. %s" %dummymsg
 	print (infomsg); logging.info (infomsg)
 	return dest
 
