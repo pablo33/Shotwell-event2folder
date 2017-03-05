@@ -19,7 +19,7 @@ Python3
 This script has been tesded with Shotwell 0.18.0 to 0.24.2 (ubuntu 14.10 to 16.10).
 
 **Usage:**
-Just launch the script from command line, this will create a config file, edit to fit your needings and run it aganin.
+Just launch the script from command line, this will create a config file, edit to fit your needings and run it again.
 
 	$ python3 Shotwell-event2folder.py
 

@@ -220,24 +220,23 @@ if __name__ == '__main__':
 		# Create a new config file
 		f = open(userfileconfig,"w")
 		f.write ('''
-	# Shotwell-event2folder Config file.
-	# This options can be overriden by entering a command line options (not yet implemented)
-	# This is a python file. Be careful and see the sintaxt.
+# Shotwell-event2folder Config file.
+# This is a python file. Be careful and see the sintaxt.
 
-	librarymainpath = "%(home)s/Pictures"
-	dummy = False # Dummy mode. True will not perform any changes to DB or File structure 
-	insertdateinfilename = True  #  Filenames will be renamed with starting with a full-date expression
-	clearfolders = True  # Delete empty folders
-	librarymostrecentpath =  "%(home)s/Pictures/mostrecent"  # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
-	mostrecentkbs = 2000000000  # Max amount of Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there.
-	importtitlefromfilenames = False  # Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.
-	inserttitlesinfiles = False  # Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title's in database is empty, it will set this retrieved title in both file, and database.
+librarymainpath = "%(home)s/Pictures"
+dummy = False # Dummy mode. True will not perform any changes to DB or File structure 
+insertdateinfilename = True  #  Filenames will be renamed with starting with a full-date expression
+clearfolders = True  # Delete empty folders
+librarymostrecentpath =  "%(home)s/Pictures/mostrecent"  # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
+mostrecentkbs = 2000000000  # Max amount of Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there.
+importtitlefromfilenames = False  # Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.
+inserttitlesinfiles = False  # Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title's in database is empty, it will set this retrieved title in both file, and database.
 	'''%{'home':UserHomePath}
 		)
 		f.close()
 		print ("Your user config file has been created at:", userfileconfig)
 		print ("Please customize by yourself before run this software again.")
-		print ("This software is will try to open it with a text editor (gedit).")
+		print ("This software will attempt to open it with a text editor using gedit.")
 		os.system ("gedit " + userfileconfig)
 		exit()
 
