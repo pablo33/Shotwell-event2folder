@@ -21,7 +21,7 @@ This script has been tesded with Shotwell 0.18.0 to 0.24.2 (ubuntu 14.10 to 16.1
 **Usage:**
 Just launch the script from command line, this will create a config file, edit to fit your needings and run it again.
 
-	$ python3 Shotwell-event2folder.py
+	$ python3 Shotwell_event2folder.py
 
 
 See wiki page for further information. 

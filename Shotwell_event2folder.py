@@ -141,7 +141,7 @@ def filemove (origin, dest):
 		if itemcheck (os.path.dirname(dest)) == '':
 			os.makedirs (os.path.dirname(dest))
 		shutil.move (origin, dest)
-		infomsg = "\tfile has been moved. %s" %dummymsg
+	infomsg = "\tfile has been moved. %s" %dummymsg
 	print (infomsg); logging.info (infomsg)
 	return dest
 
@@ -201,6 +201,11 @@ def getappstatus (app):
 			break
 	return state
 
+def addtoconfigfile(linetoadd):
+	print ("adding a new parameter to the user config file: " + userfileconfig)
+	f = open(userfileconfig,"a")
+	f.write ("\n" + linetoadd)
+	f.close()
 
 if __name__ == '__main__':
 
@@ -229,6 +234,7 @@ insertdateinfilename = True  #  Filenames will be renamed with starting with a f
 clearfolders = True  # Delete empty folders
 librarymostrecentpath =  "%(home)s/Pictures/mostrecent"  # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
 mostrecentkbs = 2000000000  # Max amount of Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there.
+morerecent_stars = -1  # use values from -1 to 5 . Filter pictures or videos by rating to send to the more recent pictures path as destination. use -1 to move all files or ignore this option (default).
 importtitlefromfilenames = False  # Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.
 inserttitlesinfiles = False  # Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title's in database is empty, it will set this retrieved title in both file, and database.
 	'''%{'home':UserHomePath}
@@ -236,20 +242,34 @@ inserttitlesinfiles = False  # Insert titles in files as metadata, you can inser
 		f.close()
 		print ("Your user config file has been created at:", userfileconfig)
 		print ("Please customize by yourself before run this software again.")
-		print ("This software will attempt to open it with a text editor using gedit.")
+		print ("This software will attempt to open your configuration file with a text editor (gedit).")
 		os.system ("gedit " + userfileconfig)
 		exit()
 
-	# Getting variables from user's config file
+	abort = False
+	# Getting variables from user's config file and/or updating it.
 	librarymainpath = Shotevent2folder_cfg.librarymainpath
 	dummy = Shotevent2folder_cfg.dummy  # Dummy mode. True will not perform any changes to DB or File structure 
 	insertdateinfilename = Shotevent2folder_cfg.insertdateinfilename  #  Filenames will be renamed with starting with a full-date expression
 	clearfolders = Shotevent2folder_cfg.clearfolders  # Delete empty folders
 	librarymostrecentpath = Shotevent2folder_cfg.librarymostrecentpath    # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
+	
 	mostrecentkbs = Shotevent2folder_cfg.mostrecentkbs  # Amount of max Kbs to send to the most recent picture path as destination. Set 0 if you do not want to send any pictures there.
+	try:
+		morerecent_stars = Shotevent2folder_cfg.morerecent_stars  # Filter the pictures that are sent to the more recent destination by rating. allowed values from -1 to 5 (integer)
+	except AttributeError:
+		addtoconfigfile("morerecent_stars = -1  # use values from -1 to 5 . Filter pictures or videos by rating to send to the more recent pictures path as destination. use -1 to move all files or ignore this option (default).")
+		abort = True
+	
 	importtitlefromfilenames = Shotevent2folder_cfg.importtitlefromfilenames  # Get a title from the filename and set it as title.
 	inserttitlesinfiles = Shotevent2folder_cfg.inserttitlesinfiles  # Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title's in database is empty, it will set this retrieved title in both file, and database.
 
+	if abort:
+		print ("Your user config file has been updated with new options:", userfileconfig)
+		print ("A default value has been assigned, please customize by yourself before run this software again.")
+		print ("This software will attempt to open your configuration file with a text editor (gedit).")
+		os.system ("gedit " + userfileconfig)
+		exit()
 
 	# ===============================
 	# The logging module.
@@ -273,6 +293,26 @@ inserttitlesinfiles = False  # Insert titles in files as metadata, you can inser
 	)
 	print ("logging to:", logging_file)
 
+	# Check inconsistences.
+	errmsgs = []
+	
+	#	--morerecent_stars
+	if type(morerecent_stars) != int:
+		errmsgs.append ("\n morerecent_stars at configuration file is not an integer. Must be from -1 to 5. (use -1 to move all files)")
+		logging.critical ("morerecent_stars is not a integer")
+	elif morerecent_stars not in range(-1,6):
+		errmsgs.append ("\n morerecent_stars at configuration out of range. Must be from -1 to 5. (use -1 to move all files)")
+		logging.critical ("morerecent_stars out of range. actual value: "+ str(morerecent_stars))
+
+	# exitting if errors econuntered
+	if len (errmsgs) != 0 :
+		for a in errmsgs:
+			print (a)
+		print ('\nplease revise your config file.','\n ....exitting',sep='\n')
+		print ("This software will attempt to open your configuration file with a text editor (gedit).")
+		os.system ("gedit " + userfileconfig)
+		exit()
+
 
 	# Logging the actual config
 	logging.info ('Running with this configuraton:')
@@ -283,6 +323,7 @@ inserttitlesinfiles = False  # Insert titles in files as metadata, you can inser
 	'clearfolders'			:	clearfolders,
 	'librarymostrecentpath'	:	librarymostrecentpath,
 	'mostrecentkbs'			:	mostrecentkbs,
+	'morerecent_stars'		:	morerecent_stars,
 	'importtitlefromfilenames':	importtitlefromfilenames,
 	}
 	for a in parametersdyct:
@@ -307,7 +348,7 @@ inserttitlesinfiles = False  # Insert titles in files as metadata, you can inser
 
 	countdown = 12
 	while getappstatus (['shotwell']):
-		infomsg = 'warning, Shotwell process is alive, Please consider close this aplication.'
+		infomsg = 'warning, Shotwell process is alive, Please consider close Shotwell aplication before run this script.'
 		print (infomsg) ; logging.info ('('+str(countdown)+')' + infomsg)
 		print (countdown, 'retries left to exit')
 		countdown -= 1
@@ -330,7 +371,7 @@ inserttitlesinfiles = False  # Insert titles in files as metadata, you can inser
 	# Set the more recent Kbs of data and stablishing the limit to move if any.
 	if mostrecentkbs > 0 :
 		dballitemscursor = dbconnection.cursor ()
-		dballitemscursor.execute ("SELECT filesize,exposure_time,'PhotoTable' as tabla FROM PhotoTable UNION SELECT filesize,exposure_time,'VideoTable' as tabla FROM VideoTable ORDER BY exposure_time DESC")
+		dballitemscursor.execute ("SELECT filesize, exposure_time, rating, 'PhotoTable' as tabla FROM PhotoTable WHERE rating >= %(rating)s UNION SELECT filesize, exposure_time, rating,'VideoTable' as tabla FROM VideoTable WHERE rating >= %(rating)s ORDER BY exposure_time DESC" %{'rating':morerecent_stars} )
 		acumulatedKb = 0
 		for entry in dballitemscursor:
 			acumulatedKb = acumulatedKb + entry[0]
@@ -338,7 +379,7 @@ inserttitlesinfiles = False  # Insert titles in files as metadata, you can inser
 			if acumulatedKb >= mostrecentkbs :
 				break
 		datelimit2move_exposure = datetime.fromtimestamp(entry[1])
-		logging.info ("Files earlier than " + datelimit2move_exposure.strftime('%Y-%m-%d') + " will be sent to " + librarymostrecentpath)
+		logging.info ("Files earlier than " + datelimit2move_exposure.strftime('%Y-%m-%d') + " and with a rating of %s or more"%morerecent_stars + " will be sent to " + librarymostrecentpath)
 		dballitemscursor.close()
 
 	dbeventcursor = dbconnection.cursor ()
@@ -365,8 +406,7 @@ inserttitlesinfiles = False  # Insert titles in files as metadata, you can inser
 		#  ....TODO.... Check for name inconsistences, and change not allowed characters.
 		if eventname == None : eventname = ""
 		print ("\n\n======================\nProcessing event:(" + str(eventid) + ") " + eventname)
-		logging.info ('')
-		logging.info ('## Processing event nº' + str(eventid) + ", " + eventname + "(" + str(eventtime) + ")")
+		logging.info ('\n## Processing event nº' + str(eventid) + ", " + eventname + "(" + str(eventtime) + ")")
 
 		# defining event path:
 		
@@ -384,33 +424,33 @@ inserttitlesinfiles = False  # Insert titles in files as metadata, you can inser
 
 		# retrieving event's photos and videos
 		dbtablecursor = dbconnection.cursor()
-		dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable, editable_id  FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable, -1 AS editable_id FROM VideoTable WHERE event_id = ?",(eventid, eventid))
+		dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable, editable_id, rating FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable, -1 AS editable_id, rating FROM VideoTable WHERE event_id = ?",(eventid, eventid))
 
 		# Process each file
 		for p in dbtablecursor:
 			eventpathF = eventpath
-			photoid, photopath, phototitle, phototimestamp, import_id, DBTable, editable_id = p
+			photoid, photopath, phototitle, phototimestamp, import_id, DBTable, editable_id, stars = p
 			photodate = datetime.fromtimestamp(phototimestamp)
 			photodateimport = datetime.fromtimestamp(import_id)
+			photofilename = os.path.basename(photopath)
 
 			if itemcheck (photopath) != "file":
-				infomsg = "! Image in database is not present at this time. Doing nothing."
+				infomsg = "! Image or video in database is not present at this time. Doing nothing."
 				print (infomsg) ; logging.info (infomsg)
 				continue
 
-			# Check if file is in the last Kb to move to most recent dir.
-			if mostrecentkbs != 0 and photodate >= datelimit2move_exposure : 
-				logging.info ("File will be sent to the recent pictures folder")
-				eventpathF = eventpathlast
-
-			# defining filename
-			photofilename = os.path.basename(photopath)
+			# logging the editable ID, just for info.
 			if editable_id != -1:
 				editablestring = "Editable id:(" + str(editable_id) + ")"
 			else:
 				editablestring = ''
 			infomsg = "# Processing(" + str(photoid) + ") "+ editablestring + " filename: " + photofilename
 			print (infomsg) ; logging.info (infomsg)
+
+			# Check if file is in the last Kb to move to most recent dir.
+			if mostrecentkbs != 0 and photodate >= datelimit2move_exposure and stars >= morerecent_stars: 
+				logging.info ("File will be sent to the recent pictures folder")
+				eventpathF = eventpathlast
 
 			photonewfilename = photofilename
 			# checking a starting date in filename
