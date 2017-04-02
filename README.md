@@ -4,9 +4,9 @@ Shotwell event to folder structure
 This is a python3 script intended to reorder your shotwell library files into an event-oriented folder structure.  
 
 Shotwell can get photo-files from the file-system, and you can assign each file to an event. But these files will remain on its source storage or once imported to shotwell they remain always at the same place.
-This script will reorder your files in your file system based on shotwell events.
+This script will dispose your files in your file system based on shotwell events.
 
-This script will process shotwell DB and commit the changes.
+The script will process shotwell DB and commit the changes.
 and even more, optionally:
 - you can automatically rename filenames so they starts with a date identifier (YYYYMMDD_hhmmss filename.jpg)
 - you can automatically send the most recent images to a defined folder.
@@ -14,7 +14,7 @@ and even more, optionally:
 
 **Dependencies:**
 
-Python3
+Python3, GExiv2 from Gi.repository
 
 This script has been tesded with Shotwell 0.18.0 to 0.24.2 (ubuntu 14.10 to 16.10).
 
