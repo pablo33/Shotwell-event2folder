@@ -1,10 +1,9 @@
 #!/usr/bin/python3
 
-import sqlite3, os, sys, shutil, logging, re, time
+import sqlite3, os, sys, shutil, logging, re, time, pickle
 from datetime import datetime
 from gi.repository import GExiv2
 from subprocess import check_output  # Checks if shotwell is active or not
-
 
 
 # ------- Set Variables ---------
@@ -25,6 +24,8 @@ UserHomePath = os.getenv('HOME')
 DBpath = os.path.join(UserHomePath,".local/share/shotwell/data/photo.db")  # Path where Shotwell DB is expected to be.
 Th128path = os.path.join(UserHomePath,".cache/shotwell/thumbs/thumbs128")  # Path where thumbnails are stored.
 Th360path = os.path.join(UserHomePath,".cache/shotwell/thumbs/thumbs360")  # Path where thumbnails are stored.
+LastExec = None
+
 
 # ------ utils --------
 def itemcheck(pointer):
@@ -202,7 +203,7 @@ def getappstatus (app):
 	return state
 
 def addtoconfigfile(linetoadd):
-	print ("adding a new parameter to the user config file: " + userfileconfig)
+	print ("adding a new parameter to the user config file: " + linetoadd.split()[0])
 	f = open(userfileconfig,"a")
 	f.write ("\n" + linetoadd)
 	f.close()
@@ -221,55 +222,58 @@ if __name__ == '__main__':
 		sys.path.append(appuserpath)
 		import Shotevent2folder_cfg
 	else:
-		print ("There isn't an user config file: " + userfileconfig)
+		print ("\nThere isn't an user config file: " + userfileconfig)
 		# Create a new config file
 		f = open(userfileconfig,"w")
-		f.write ('''
-# Shotwell-event2folder Config file.
-# This is a python file. Be careful and see the sintaxt.
-
-librarymainpath = "%(home)s/Pictures"
-dummy = False # Dummy mode. True will not perform any changes to DB or File structure 
-insertdateinfilename = True  #  Filenames will be renamed with starting with a full-date expression
-clearfolders = True  # Delete empty folders
-librarymostrecentpath =  "%(home)s/Pictures/mostrecent"  # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
-mostrecentkbs = 2000000000  # Max amount of Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there.
-morerecent_stars = -1  # use values from -1 to 5 . Filter pictures or videos by rating to send to the more recent pictures path as destination. use -1 to move all files or ignore this option (default).
-importtitlefromfilenames = False  # Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.
-inserttitlesinfiles = False  # Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title's in database is empty, it will set this retrieved title in both file, and database.
-	'''%{'home':UserHomePath}
-		)
+		f.write ('# Shotwell-event2folder Config file.\n# This is a python file. Be careful and see the sintaxt.\n\n')
 		f.close()
-		print ("Your user config file has been created at:", userfileconfig)
-		print ("Please customize by yourself before run this software again.")
-		print ("This software will attempt to open your configuration file with a text editor (gedit).")
-		os.system ("gedit " + userfileconfig)
-		exit()
+		print ("\nYour user config file has been created at:", userfileconfig)
+		Shotevent2folder_cfg = None
 
 	abort = False
 	# Getting variables from user's config file and/or updating it.
-	librarymainpath = Shotevent2folder_cfg.librarymainpath
-	dummy = Shotevent2folder_cfg.dummy  # Dummy mode. True will not perform any changes to DB or File structure 
-	insertdateinfilename = Shotevent2folder_cfg.insertdateinfilename  #  Filenames will be renamed with starting with a full-date expression
-	clearfolders = Shotevent2folder_cfg.clearfolders  # Delete empty folders
-	librarymostrecentpath = Shotevent2folder_cfg.librarymostrecentpath    # Path to send the most recent pictures. You can set this path synced with Dropbox pej.
-	
-	mostrecentkbs = Shotevent2folder_cfg.mostrecentkbs  # Amount of max Kbs to send to the most recent picture path as destination. Set 0 if you do not want to send any pictures there.
-	try:
-		morerecent_stars = Shotevent2folder_cfg.morerecent_stars  # Filter the pictures that are sent to the more recent destination by rating. allowed values from -1 to 5 (integer)
-	except AttributeError:
-		addtoconfigfile("morerecent_stars = -1  # use values from -1 to 5 . Filter pictures or videos by rating to send to the more recent pictures path as destination. use -1 to move all files or ignore this option (default).")
-		abort = True
-	
-	importtitlefromfilenames = Shotevent2folder_cfg.importtitlefromfilenames  # Get a title from the filename and set it as title.
-	inserttitlesinfiles = Shotevent2folder_cfg.inserttitlesinfiles  # Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title's in database is empty, it will set this retrieved title in both file, and database.
+	Default_Config_options = (
+		('librarymainpath',	 		'\"{}/Pictures\"'.format(UserHomePath), '# Main path where your imeges are or you want them to be.'),
+		('dummy',			 		'False', '# Dummy mode. True will not perform any changes to DB or File structure.'),
+		('insertdateinfilename',	'True', '#  Filenames will be renamed with starting with a full-date expression.'),
+		('clearfolders', 			'True' , '# Delete empty folders.'),
+		('librarymostrecentpath',	'\"{}/Pictures/mostrecent\"'.format(UserHomePath), '# Path to send the most recent pictures. You can set this path synced with Dropbox pej.'),
+		('mostrecentkbs', 			'2000000000', '# Max amount of Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there.'),
+		('morerecent_stars',		'-1', '# use values from -1 to 5 . Filter pictures or videos by rating to send to the more recent pictures path as destination. use -1 to move all files or ignore this option (default).'),
+		('importtitlefromfilenames','False', '# Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.'),
+		('inserttitlesinfiles',		'False', '# Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title\'s in database is empty, it will set this retrieved title in both file, and database.'),
+		('daemonmode','False','# It keeps the script running and process Shotwell DataBase if it has changes since last execution.'),
+		('sleepseconds','120','# Number of seconds to sleep the script until another check in daemon mode.'),
+		)
+
+	retrievedvalues = dict ()
+	for option in Default_Config_options:
+		try:
+			 retrievedvalues[option[0]] = eval('Shotevent2folder_cfg.{}'.format (option[0]))
+
+		except AttributeError:
+			addtoconfigfile('{} = {}  {}'.format(*option))
+			abort = True
 
 	if abort:
-		print ("Your user config file has been updated with new options:", userfileconfig)
-		print ("A default value has been assigned, please customize by yourself before run this software again.")
-		print ("This software will attempt to open your configuration file with a text editor (gedit).")
+		print ("Your user config file has been updated with new options:", userfileconfig, '\n')
+		print ("A default value has been assigned, please customize by yourself before run this software again.\n")
+		print ("This software will attempt to open your configuration file with a text editor (gedit or nano).")
 		os.system ("gedit " + userfileconfig)
 		exit()
+
+	librarymainpath = retrievedvalues ['librarymainpath']
+	dummy = retrievedvalues ['dummy']
+	insertdateinfilename = retrievedvalues ['insertdateinfilename']
+	clearfolders = retrievedvalues ['clearfolders']
+	librarymostrecentpath = retrievedvalues ['librarymostrecentpath']
+	mostrecentkbs = retrievedvalues ['mostrecentkbs']
+	morerecent_stars = retrievedvalues ['morerecent_stars']
+	importtitlefromfilenames = retrievedvalues ['importtitlefromfilenames']
+	inserttitlesinfiles = retrievedvalues ['inserttitlesinfiles']
+	daemonmode = retrievedvalues ['daemonmode']
+	sleepseconds = retrievedvalues ['sleepseconds']
+	
 
 	# ===============================
 	# The logging module.
