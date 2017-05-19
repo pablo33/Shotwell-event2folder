@@ -243,7 +243,7 @@ if __name__ == '__main__':
 		('importtitlefromfilenames','False', '# Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.'),
 		('inserttitlesinfiles',		'False', '# Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title\'s in database is empty, it will set this retrieved title in both file, and database.'),
 		('daemonmode','False','# It keeps the script running and process Shotwell DataBase if it has changes since last execution.'),
-		('sleepseconds','120','# Number of seconds to sleep the script until another check in daemon mode.'),
+		('sleepseconds','120','# Number of seconds to sleep, until another check in daemon mode.'),
 		)
 
 	retrievedvalues = dict ()
@@ -252,13 +252,14 @@ if __name__ == '__main__':
 			 retrievedvalues[option[0]] = eval('Shotevent2folder_cfg.{}'.format (option[0]))
 
 		except AttributeError:
-			addtoconfigfile('{} = {}  {}'.format(*option))
+			addtoconfigfile ('{} = {}  {}'.format(*option))
 			abort = True
 
 	if abort:
 		print ("Your user config file has been updated with new options:", userfileconfig, '\n')
 		print ("A default value has been assigned, please customize by yourself before run this software again.\n")
-		print ("This software will attempt to open your configuration file with a text editor (gedit or nano).")
+		print ("This software will attempt to open your configuration file with a text editor (gedit).")
+		input ("Press a key.")
 		os.system ("gedit " + userfileconfig)
 		exit()
 
@@ -280,7 +281,7 @@ if __name__ == '__main__':
 	# ===============================
 	loginlevel = 'INFO'
 	logpath = './'
-	logging_file = os.path.join(logpath, 'Shotwell-event2folder.log')
+	logging_file = os.path.join(logpath, 'Shotwell_event2folder.log')
 
 
 	# Getting current date and time
@@ -295,7 +296,7 @@ if __name__ == '__main__':
 		filename = logging_file,
 		filemode = 'w'  # a = add
 	)
-	print ("logging to:", logging_file)
+	print ("Logging to:", logging_file)
 
 	# Check inconsistences.
 	errmsgs = []
@@ -329,9 +330,11 @@ if __name__ == '__main__':
 	'mostrecentkbs'			:	mostrecentkbs,
 	'morerecent_stars'		:	morerecent_stars,
 	'importtitlefromfilenames':	importtitlefromfilenames,
+	'daemonmode'			:	daemonmode,
+	'sleepseconds'			:	sleepseconds,
 	}
 	for a in parametersdyct:
-		logging.info (a+'\t'+' = '+ str (parametersdyct[a]))
+		logging.info ('{}{} = {}'.format(" "*(30-len(a)), a, parametersdyct[a]))
 	logging.info('')
 
 
@@ -340,260 +343,278 @@ if __name__ == '__main__':
 	if dummy == True:
 		dummymsg = '(dummy mode)'
 
-	foldercollection = set ()
-	datelimit2move_exposure = datetime.now()
+
+	while True:
+		foldercollection = set ()
+		datelimit2move_exposure = datetime.now()
 
 
-	# Check if Shotwell DB is present
-	if itemcheck (DBpath) != "file":
-		infomsg = 'Shotwell Database is not present, this script is intended to work on a Shotwell Database located at:\n' + DBpath
-		print (infomsg) ; logging.info (infomsg)
-		exit()
-
-	countdown = 12
-	while getappstatus (['shotwell']):
-		infomsg = 'warning, Shotwell process is alive, Please consider close Shotwell aplication before run this script.'
-		print (infomsg) ; logging.info ('('+str(countdown)+')' + infomsg)
-		print (countdown, 'retries left to exit')
-		countdown -= 1
-		if countdown < 0:
-			exit()
-		time.sleep (10)
-	del countdown, time, check_output
-
-
-	dbconnection = sqlite3.connect (DBpath)
-
-	__Schema__, __appversion__ = dbconnection.execute ("SELECT schema_version, app_version FROM versiontable").fetchone()
-	if __Schema__ != 20 :
-		print ("This utility may not work properly with an Shotwell DataBase Schema other than 20")
-		print ("DB schema 20 is used on Shotwell version 0.22 or 0.24")
-		print ("Actual DB Schema is %s"%__Schema__)
-		print ("Actual Shotwell Version %s"%__appversion__)
-		exit ()
-
-	# Set the more recent Kbs of data and stablishing the limit to move if any.
-	if mostrecentkbs > 0 :
-		dballitemscursor = dbconnection.cursor ()
-		dballitemscursor.execute ("SELECT filesize, exposure_time, rating, 'PhotoTable' as tabla FROM PhotoTable WHERE rating >= %(rating)s UNION SELECT filesize, exposure_time, rating,'VideoTable' as tabla FROM VideoTable WHERE rating >= %(rating)s ORDER BY exposure_time DESC" %{'rating':morerecent_stars} )
-		acumulatedKb = 0
-		for entry in dballitemscursor:
-			acumulatedKb = acumulatedKb + entry[0]
-			#print (acumulatedKb)
-			if acumulatedKb >= mostrecentkbs :
-				break
-		datelimit2move_exposure = datetime.fromtimestamp(entry[1])
-		logging.info ("Files earlier than " + datelimit2move_exposure.strftime('%Y-%m-%d') + " and with a rating of %s or more"%morerecent_stars + " will be sent to " + librarymostrecentpath)
-		dballitemscursor.close()
-
-	dbeventcursor = dbconnection.cursor ()
-	# Inserting a Trash event
-	dbeventcursor.execute("INSERT INTO EventTable (id, name) VALUES (-1,'Trash')")
-	# event cursor
-	dbeventcursor.execute('SELECT id,name FROM EventTable')
-	for e in dbeventcursor:
-		# Retrieve event data
-		eventid, eventname = e	
-		times = dbconnection.execute('SELECT exposure_time FROM videotable WHERE event_id = ? and exposure_time is not null UNION select exposure_time from phototable where event_id = ? and exposure_time is not null',(eventid,eventid))
-
-		#    calculating event date by average
-		suma, count = 0, 0 
-		for l in times:
-			count += 1 
-			suma += l[0]
-		if count == 0:
-			logging.debug ('\tEvent %s has no photos or videos (is empty). Skipping.' % eventid)
-			continue
-		eventavgtime = suma/count
-		eventtime = datetime.fromtimestamp(eventavgtime)
-
-		#  ....TODO.... Check for name inconsistences, and change not allowed characters.
-		if eventname == None : eventname = ""
-		print ("\n\n======================\nProcessing event:(" + str(eventid) + ") " + eventname)
-		logging.info ('\n## Processing event nº' + str(eventid) + ", " + eventname + "(" + str(eventtime) + ")")
-
-		# defining event path:
-		
-		if eventid == -1 :
-			eventpath = os.path.join(librarymainpath, eventname)
-			eventpathlast = os.path.join(librarymostrecentpath, eventname)
-		else:
-			eventpath = os.path.join(librarymainpath,eventtime.strftime('%Y'),eventtime.strftime('%Y-%m-%d ') + eventname)
-			eventpathlast = os.path.join(librarymostrecentpath,eventtime.strftime('%Y'),eventtime.strftime('%Y-%m-%d ') + eventname)
-
-		eventpath, eventpathlast = eventpath.strip(), eventpathlast.strip()
-
-		logging.info ("path for the event: " + eventpath)
-		logging.info ("path for the event in case of the the most recent pictures: " + eventpathlast)
-
-		# retrieving event's photos and videos
-		dbtablecursor = dbconnection.cursor()
-		dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable, editable_id, rating FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable, -1 AS editable_id, rating FROM VideoTable WHERE event_id = ?",(eventid, eventid))
-
-		# Process each file
-		for p in dbtablecursor:
-			eventpathF = eventpath
-			photoid, photopath, phototitle, phototimestamp, import_id, DBTable, editable_id, stars = p
-			photodate = datetime.fromtimestamp(phototimestamp)
-			photodateimport = datetime.fromtimestamp(import_id)
-			photofilename = os.path.basename(photopath)
-
-			if itemcheck (photopath) != "file":
-				infomsg = "! Image or video in database is not present at this time. Doing nothing."
-				print (infomsg) ; logging.info (infomsg)
-				continue
-
-			# logging the editable ID, just for info.
-			if editable_id != -1:
-				editablestring = "Editable id:(" + str(editable_id) + ")"
-			else:
-				editablestring = ''
-			infomsg = "# Processing(" + str(photoid) + ") "+ editablestring + " filename: " + photofilename
+		# Check if Shotwell DB is present
+		if itemcheck (DBpath) != "file":
+			infomsg = 'Shotwell Database is not present, this script is intended to work on a Shotwell Database located at:\n' + DBpath
 			print (infomsg) ; logging.info (infomsg)
+			exit()
 
-			# Check if file is in the last Kb to move to most recent dir.
-			if mostrecentkbs != 0 and photodate >= datelimit2move_exposure and stars >= morerecent_stars: 
-				logging.info ("File will be sent to the recent pictures folder")
-				eventpathF = eventpathlast
+		countdown = 12
+		execution = True
 
-			photonewfilename = photofilename
-			# checking a starting date in filename
-			sep = ""
-			if insertdateinfilename == True and phototimestamp != None and eventid != -1:
-				expr = '[12]\d{3}[01]\d[0-3]\d[.-_ ]?[012]\d[0-5]\d[0-5]\d'
-				mo = re.search (expr, photofilename)
-				try:
-					mo.group()
-				except:
-					logging.debug ("Predefined fulldate expression was not found in %s" % photofilename)
-					sep = " "
+		if daemonmode:
+			execution = Changes ()
+			countdown = 1
+
+		if execution:
+			execution == False
+			for a in range (countdown,0,-1):
+				if getappstatus (['gedit']):
+					print ('\nWARNING: Shotwell process is alive, Please consider close Shotwell aplication before run this script.')
+					logging.info ('Shotwell process is running')
+					print ('{} retries left to desist'.format(a))
+					time.sleep (10)
 				else:
-					logging.debug ("Filename already starts with a full date expression")
-					logging.debug ("updating date on filename")
-					photofilename = photofilename [len(mo.group() ):]
-					if photofilename[0].lower() in '1234567809qwertyuiopasdfghjklñzxcvbnm':
-						sep = " "
+					execution = True
+					break
 
-				photonewfilename = datetime.strftime(photodate, '%Y%m%d_%H%M%S') + sep + photofilename
-				logging.info ("Filename will be renamed as: %s" % photonewfilename)
+		if execution:
+			dbconnection = sqlite3.connect (DBpath)
 
+			__Schema__, __appversion__ = dbconnection.execute ("SELECT schema_version, app_version FROM versiontable").fetchone()
+			if __Schema__ != 20 :
+				print ("This utility may not work properly with an Shotwell DataBase Schema other than 20")
+				print ("DB schema 20 is used on Shotwell version 0.22 or 0.24")
+				print ("Actual DB Schema is %s"%__Schema__)
+				print ("Actual Shotwell Version %s"%__appversion__)
+				exit ()
 
+			# Set the more recent Kbs of data and stablishing the limit to move if any.
+			if mostrecentkbs > 0 :
+				dballitemscursor = dbconnection.cursor ()
+				dballitemscursor.execute ("SELECT filesize, exposure_time, rating, 'PhotoTable' as tabla FROM PhotoTable WHERE rating >= %(rating)s UNION SELECT filesize, exposure_time, rating,'VideoTable' as tabla FROM VideoTable WHERE rating >= %(rating)s ORDER BY exposure_time DESC" %{'rating':morerecent_stars} )
+				acumulatedKb = 0
+				for entry in dballitemscursor:
+					acumulatedKb = acumulatedKb + entry[0]
+					#print (acumulatedKb)
+					if acumulatedKb >= mostrecentkbs :
+						break
+				datelimit2move_exposure = datetime.fromtimestamp(entry[1])
+				logging.info ("Files earlier than " + datelimit2move_exposure.strftime('%Y-%m-%d') + " and with a rating of %s or more"%morerecent_stars + " will be sent to " + librarymostrecentpath)
+				dballitemscursor.close()
 
-			# Setting the destination
-			if datetime.strftime(photodate, '%Y%m%d') == '19700101' and eventid == -1:
-				logging.info ('This file goes to the no-date folder')
-				eventpathF = eventpathF.replace('/Trash','/no_event',1)
+			dbeventcursor = dbconnection.cursor ()
+			# Inserting a Trash event
+			dbeventcursor.execute("INSERT INTO EventTable (id, name) VALUES (-1,'Trash')")
+			# event cursor
+			dbeventcursor.execute('SELECT id,name FROM EventTable')
+			for e in dbeventcursor:
+				# Retrieve event data
+				eventid, eventname = e	
+				times = dbconnection.execute('SELECT exposure_time FROM videotable WHERE event_id = ? and exposure_time is not null UNION select exposure_time from phototable where event_id = ? and exposure_time is not null',(eventid,eventid))
 
-			# (option) import title from filenames
-			if importtitlefromfilenames == True and phototitle == None:
-				phototitle = extracttitle (os.path.splitext(photofilename)[0])
-						# Changing Title pointer
-				if dummy == False:
-					dbconnection.execute ('UPDATE %s SET title = ? where id = ?' % DBTable, (phototitle, photoid))
-				logging.debug ("Entry %s, title updated at table %s. Title:%s %s" % (photoid, DBTable, phototitle, dummymsg))
+				#    calculating event date by average
+				suma, count = 0, 0 
+				for l in times:
+					count += 1 
+					suma += l[0]
+				if count == 0:
+					logging.debug ('\tEvent %s has no photos or videos (is empty). Skipping.' % eventid)
+					continue
+				eventavgtime = suma/count
+				eventtime = datetime.fromtimestamp(eventavgtime)
 
-			# writting titles from database to file
-			# database title = Extracted title = phototitle
-			fileextension = os.path.splitext (photofilename)[1]
-			if inserttitlesinfiles == True and phototitle != None and fileextension.lower() in ['.jpg']:
-				try:
-					image_metadata = GExiv2.Metadata(photopath)
-				except:
-					infomsg = '\tAn error occurred during obtaining metadata on this file'
-					print (infomsg); logging.info (infomsg)
+				#  ....TODO.... Check for name inconsistences, and change not allowed characters.
+				if eventname == None : eventname = ""
+				print ("\n\n======================\nProcessing event:(" + str(eventid) + ") " + eventname)
+				logging.info ('\n## Processing event nº' + str(eventid) + ", " + eventname + "(" + str(eventtime) + ")")
+
+				# defining event path:
+				
+				if eventid == -1 :
+					eventpath = os.path.join(librarymainpath, eventname)
+					eventpathlast = os.path.join(librarymostrecentpath, eventname)
 				else:
-					if image_metadata.get('Iptc.Application2.Caption') != phototitle:
-						mydictofmetadatas = {
-						'Iptc.Application2.Caption': phototitle,
-						'Iptc.Application2.Headline': phototitle,
-						'Xmp.dc.title': 'lang="x-default" ' + phototitle,
-						'Xmp.photoshop.Headline' : phototitle,
-						}
+					eventpath = os.path.join(librarymainpath,eventtime.strftime('%Y'),eventtime.strftime('%Y-%m-%d ') + eventname)
+					eventpathlast = os.path.join(librarymostrecentpath,eventtime.strftime('%Y'),eventtime.strftime('%Y-%m-%d ') + eventname)
 
-						for x in mydictofmetadatas:
-							image_metadata.set_tag_string (x, mydictofmetadatas[x])
-						if dummy == False :
-							image_metadata.save_file()
-						infomsg = "\tImage title metadata has been updated with database title: " + phototitle + dummymsg
+				eventpath, eventpathlast = eventpath.strip(), eventpathlast.strip()
+
+				logging.info ("path for the event: " + eventpath)
+				logging.info ("path for the event in case of the the most recent pictures: " + eventpathlast)
+
+				# retrieving event's photos and videos
+				dbtablecursor = dbconnection.cursor()
+				dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable, editable_id, rating FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable, -1 AS editable_id, rating FROM VideoTable WHERE event_id = ?",(eventid, eventid))
+
+				# Process each file
+				for p in dbtablecursor:
+					eventpathF = eventpath
+					photoid, photopath, phototitle, phototimestamp, import_id, DBTable, editable_id, stars = p
+					photodate = datetime.fromtimestamp(phototimestamp)
+					photodateimport = datetime.fromtimestamp(import_id)
+					photofilename = os.path.basename(photopath)
+
+					if itemcheck (photopath) != "file":
+						infomsg = "! Image or video in database is not present at this time. Doing nothing."
 						print (infomsg) ; logging.info (infomsg)
-							
-			dest = os.path.join (eventpathF, photonewfilename)
-			logging.info ("will be sent to :" + dest)
+						continue
 
-			## Deletes thumbnails due a condition. Shotwell will restore deleted thumbnails
-			'''
-			if editable_id != -1:
-				Deletethumb (photoid)
-				'''
+					# logging the editable ID, just for info.
+					if editable_id != -1:
+						editablestring = "Editable id:(" + str(editable_id) + ")"
+					else:
+						editablestring = ''
+					infomsg = "# Processing(" + str(photoid) + ") "+ editablestring + " filename: " + photofilename
+					print (infomsg) ; logging.info (infomsg)
 
-			# file operations
-			if photopath == dest:
-				infomsg = "This file is already on its destination. This file remains on its place."
-				logging.info (infomsg)
-				continue
-			else:
-				#moving files from photopath to dest
-				dest = filemove (photopath, dest)
-	
-				# Changing DB pointer
-				if dummy == False:
-					dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % DBTable, (dest, photoid))
-	
-				# adding a folder to scan
-				foldercollection.add (os.path.dirname(photopath))	
-				logging.debug (os.path.dirname(photopath) + ' added to folders list')
-	
-				logging.debug ("Entry %s updated at table %s. %s" % (photoid, DBTable, dummymsg))
+					# Check if file is in the last Kb to move to most recent dir.
+					if mostrecentkbs != 0 and photodate >= datelimit2move_exposure and stars >= morerecent_stars: 
+						logging.info ("File will be sent to the recent pictures folder")
+						eventpathF = eventpathlast
+
+					photonewfilename = photofilename
+					# checking a starting date in filename
+					sep = ""
+					if insertdateinfilename == True and phototimestamp != None and eventid != -1:
+						expr = '[12]\d{3}[01]\d[0-3]\d[.-_ ]?[012]\d[0-5]\d[0-5]\d'
+						mo = re.search (expr, photofilename)
+						try:
+							mo.group()
+						except:
+							logging.debug ("Predefined fulldate expression was not found in %s" % photofilename)
+							sep = " "
+						else:
+							logging.debug ("Filename already starts with a full date expression")
+							logging.debug ("updating date on filename")
+							photofilename = photofilename [len(mo.group() ):]
+							if photofilename[0].lower() in '1234567809qwertyuiopasdfghjklñzxcvbnm':
+								sep = " "
+
+						photonewfilename = datetime.strftime(photodate, '%Y%m%d_%H%M%S') + sep + photofilename
+						logging.info ("Filename will be renamed as: %s" % photonewfilename)
+
+
+
+					# Setting the destination
+					if datetime.strftime(photodate, '%Y%m%d') == '19700101' and eventid == -1:
+						logging.info ('This file goes to the no-date folder')
+						eventpathF = eventpathF.replace('/Trash','/no_event',1)
+
+					# (option) import title from filenames
+					if importtitlefromfilenames == True and phototitle == None:
+						phototitle = extracttitle (os.path.splitext(photofilename)[0])
+								# Changing Title pointer
+						if dummy == False:
+							dbconnection.execute ('UPDATE %s SET title = ? where id = ?' % DBTable, (phototitle, photoid))
+						logging.debug ("Entry %s, title updated at table %s. Title:%s %s" % (photoid, DBTable, phototitle, dummymsg))
+
+					# writting titles from database to file
+					# database title = Extracted title = phototitle
+					fileextension = os.path.splitext (photofilename)[1]
+					if inserttitlesinfiles == True and phototitle != None and fileextension.lower() in ['.jpg']:
+						try:
+							image_metadata = GExiv2.Metadata(photopath)
+						except:
+							infomsg = '\tAn error occurred during obtaining metadata on this file'
+							print (infomsg); logging.info (infomsg)
+						else:
+							if image_metadata.get('Iptc.Application2.Caption') != phototitle:
+								mydictofmetadatas = {
+								'Iptc.Application2.Caption': phototitle,
+								'Iptc.Application2.Headline': phototitle,
+								'Xmp.dc.title': 'lang="x-default" ' + phototitle,
+								'Xmp.photoshop.Headline' : phototitle,
+								}
+
+								for x in mydictofmetadatas:
+									image_metadata.set_tag_string (x, mydictofmetadatas[x])
+								if dummy == False :
+									image_metadata.save_file()
+								infomsg = "\tImage title metadata has been updated with database title: " + phototitle + dummymsg
+								print (infomsg) ; logging.info (infomsg)
+									
+					dest = os.path.join (eventpathF, photonewfilename)
+					logging.info ("will be sent to :" + dest)
+
+					## Deletes thumbnails due a condition. Shotwell will restore deleted thumbnails
+					'''
+					if editable_id != -1:
+						Deletethumb (photoid)
+						'''
+
+					# file operations
+					if photopath == dest:
+						infomsg = "This file is already on its destination. This file remains on its place."
+						logging.info (infomsg)
+						continue
+					else:
+						#moving files from photopath to dest
+						dest = filemove (photopath, dest)
 			
-			if editable_id != -1:
-				editable_photo = dbconnection.execute ('SELECT filepath FROM BackingPhotoTable WHERE id = %s' %editable_id).fetchone()[0]
-				editable_dest = os.path.splitext(dest)[0]+'_modified'+os.path.splitext(dest)[1]
-				if os.path.dirname(editable_photo) == os.path.dirname(editable_dest) and editable_photo == editable_dest:
-					infomsg = "This file is already on its destination. This file remains on its place."
-					logging.info (infomsg)
-					continue			
-				else:
-					#moving files from editable_photo to editable_dest
-					result = filemove (editable_photo, editable_dest)
-					if result != None:
-						editable_dest = result
-						foldercollection.add (os.path.dirname(editable_photo))
-						logging.debug (os.path.dirname(editable_photo) + ' added to folders list')
 						# Changing DB pointer
 						if dummy == False:
-							dbconnection.execute ('UPDATE BackingPhotoTable SET filepath = ? where id = ?', (editable_dest, editable_id))
-						logging.debug ("Entry %s updated at table %s. %s" % (editable_id, 'BackingPhotoTable', dummymsg))
-					else:
-						infomsg = 'Cannot find editable file id(%s): %s'%(editable_id,editable_photo)
-						logging.warning (infomsg)
+							dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % DBTable, (dest, photoid))
+			
+						# adding a folder to scan
+						foldercollection.add (os.path.dirname(photopath))	
+						logging.debug (os.path.dirname(photopath) + ' added to folders list')
+			
+						logging.debug ("Entry %s updated at table %s. %s" % (photoid, DBTable, dummymsg))
+					
+					if editable_id != -1:
+						editable_photo = dbconnection.execute ('SELECT filepath FROM BackingPhotoTable WHERE id = %s' %editable_id).fetchone()[0]
+						editable_dest = os.path.splitext(dest)[0]+'_modified'+os.path.splitext(dest)[1]
+						if os.path.dirname(editable_photo) == os.path.dirname(editable_dest) and editable_photo == editable_dest:
+							infomsg = "This file is already on its destination. This file remains on its place."
+							logging.info (infomsg)
+							continue			
+						else:
+							#moving files from editable_photo to editable_dest
+							result = filemove (editable_photo, editable_dest)
+							if result != None:
+								editable_dest = result
+								foldercollection.add (os.path.dirname(editable_photo))
+								logging.debug (os.path.dirname(editable_photo) + ' added to folders list')
+								# Changing DB pointer
+								if dummy == False:
+									dbconnection.execute ('UPDATE BackingPhotoTable SET filepath = ? where id = ?', (editable_dest, editable_id))
+								logging.debug ("Entry %s updated at table %s. %s" % (editable_id, 'BackingPhotoTable', dummymsg))
+							else:
+								infomsg = 'Cannot find editable file id(%s): %s'%(editable_id,editable_photo)
+								logging.warning (infomsg)
 
-		dbtablecursor.close()
+				dbtablecursor.close()
 
-	dbeventcursor.execute("DELETE FROM EventTable WHERE id = -1")
-	dbeventcursor.close()
-	dbconnection.commit()
-	logging.debug ("Changes were commited")
-	dbconnection.close ()
-	logging.debug ("DB connection was closed")
+			dbeventcursor.execute("DELETE FROM EventTable WHERE id = -1")
+			dbeventcursor.close()
+			dbconnection.commit()
+			logging.debug ("Changes were commited")
+			dbconnection.close ()
+			logging.debug ("DB connection was closed")
 
-	# Cleaning empty folders
-	if clearfolders == True:
-		logging.info ('Checking empty folders to delete them')
-		foldercollectionnext = set()
-		while len(foldercollection) > 0:
-			for i in foldercollection:
-				logging.info ('checking: %s' %i)
-				if itemcheck(i) != 'folder':
-					logging.warning ('\tDoes not exists or is not a folder. Skipping')
-					continue			
-				if len (os.listdir(i)) == 0:
-					shutil.rmtree (i)
-					infomsg = "\tfolder: %s has been removed. (was empty)" % i
-					print (infomsg)
-					logging.info (infomsg)
-					foldercollectionnext.add (os.path.dirname(i))
-					logging.debug ("\tadded next level to re-scan")
-			foldercollection = foldercollectionnext
-			foldercollectionnext = set()
+			# Cleaning empty folders
+			if clearfolders == True:
+				logging.info ('Checking empty folders to delete them')
+				foldercollectionnext = set()
+				while len(foldercollection) > 0:
+					for i in foldercollection:
+						logging.info ('checking: %s' %i)
+						if itemcheck(i) != 'folder':
+							logging.warning ('\tDoes not exists or is not a folder. Skipping')
+							continue			
+						if len (os.listdir(i)) == 0:
+							shutil.rmtree (i)
+							infomsg = "\tfolder: %s has been removed. (was empty)" % i
+							print (infomsg)
+							logging.info (infomsg)
+							foldercollectionnext.add (os.path.dirname(i))
+							logging.debug ("\tadded next level to re-scan")
+					foldercollection = foldercollectionnext
+					foldercollectionnext = set()
+
+		if daemonmode:
+			if execution:
+				pass
+			time.sleep (sleepseconds)
+		else:
+			break
 	print ('Done!')
+
 
