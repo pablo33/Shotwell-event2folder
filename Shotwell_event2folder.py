@@ -202,18 +202,43 @@ def getappstatus (app):
 			break
 	return state
 
-def addtoconfigfile(linetoadd):
+def addtoconfigfile (linetoadd):
 	print ("adding a new parameter to the user config file: " + linetoadd.split()[0])
 	f = open(userfileconfig,"a")
 	f.write ("\n" + linetoadd)
 	f.close()
 
+def Changes ():
+	""" Check if there have been modified ShotwellDatabase since last execution
+		The last date of execution is stored in a file at user's configuration folder.
+		The file is created only in daemonmode.
+		
+		It returns True in case it has changed
+		It returns False in other case
+		"""
+	global LastExec, shotwellDBstatDate, lastExecFile
+	if LastExec == None or itemcheck (lastExecFile) != 'file':
+		logging.info ('Shotwell DB time: ', shotwellDBstatDate)
+		if itemcheck (lastExecFile) == 'file':
+			f = open (lastExecFile, 'rb')
+			LastExec = pickle.load (f)
+			logging.info ('LastExec from pickle: {}'.format(LastExec))
+		else:
+			LastExec = datetime.now()
+			logging.info ('initializing pickle: {}'.format(LastExec))
+			return True
+	if shotwellDBstatDate > LastExec:
+		return True
+	return False
+
+
 if __name__ == '__main__':
 
 	# Load user config:
 	# Getting user folder to place log files....
-	appuserpath= os.path.join(UserHomePath,".Shotwell-event2folder")
-	userfileconfig = os.path.join(appuserpath,"Shotevent2folder_cfg.py")
+	appuserpath= os.path.join (UserHomePath,".Shotwell-event2folder")
+	userfileconfig = os.path.join (appuserpath,"Shotevent2folder_cfg.py")
+	lastExecFile = os.path.join (appuserpath,".LastExec.dump")
 	if itemcheck (appuserpath) != "folder":
 		os.makedirs(appuserpath)
 
@@ -359,15 +384,18 @@ if __name__ == '__main__':
 		execution = True
 
 		if daemonmode:
+			shotwellDBstatDate = datetime.fromtimestamp(os.path.getmtime (DBpath))
 			execution = Changes ()
-			countdown = 1
 
 		if execution:
-			execution == False
+			execution = False
 			for a in range (countdown,0,-1):
-				if getappstatus (['gedit']):
+				if getappstatus (['shotwell']):
 					print ('\nWARNING: Shotwell process is alive, Please consider close Shotwell aplication before run this script.')
 					logging.info ('Shotwell process is running')
+					if daemonmode:
+						execution = False
+						break
 					print ('{} retries left to desist'.format(a))
 					time.sleep (10)
 				else:
@@ -611,7 +639,10 @@ if __name__ == '__main__':
 
 		if daemonmode:
 			if execution:
-				pass
+				f = open (lastExecFile, 'wb')
+				LastExec = datetime.now()
+				pickle.dump (LastExec, f)
+				f.close()
 			time.sleep (sleepseconds)
 		else:
 			break
