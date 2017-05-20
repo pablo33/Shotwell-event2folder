@@ -654,7 +654,10 @@ if __name__ == '__main__':
 				logging.debug ('Creating/updating LastExecFile.dump')
 				pickle.dump (LastExec, f)
 				f.close()
-			time.sleep (sleepseconds)
+			if sleepseconds > 0:
+				time.sleep (sleepseconds)
+			else:
+				break
 		else:
 			break
 	print ('Done!')
