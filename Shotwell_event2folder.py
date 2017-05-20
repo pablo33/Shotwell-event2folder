@@ -314,7 +314,7 @@ if __name__ == '__main__':
 	# ===============================
 	# The logging module.
 	# ===============================
-	loginlevel = 'DEBUG'  # INFO ,DEBUG
+	loginlevel = 'INFO'  # INFO ,DEBUG
 	logpath = './'
 	logging_file = os.path.join(logpath, 'Shotwell_event2folder.log')
 
