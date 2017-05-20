@@ -2,11 +2,12 @@
 
 import sqlite3, os, sys, shutil, logging, re, time, pickle
 from datetime import datetime
-from gi.repository import GExiv2
+import gi  # used to avoid Gi warning
+gi.require_version('GExiv2', '0.10')  # used to avoid Gi warning
+from gi.repository import GExiv2  # for metadata management. Dependencies: gir1.2-gexiv2   &   python-gobject
 from subprocess import check_output  # Checks if shotwell is active or not
 
-
-# ------- Set Variables ---------
+# ------- Class Exceptions  ---------
 class OutOfRangeError(ValueError):
 	pass
 class NotIntegerError(ValueError):
@@ -19,7 +20,11 @@ class EmptyStringError(ValueError):
 	pass
 
 
+# ------- Set Environment ---------
+os.stat_float_times (False)  #  So you won't get milliseconds retrieving Stat dates; this will raise in error parsing getmtime.
+gi.require_version('GExiv2', '0.10')  # user to avoid Gi warning
 
+# ------- Set Variables ---------
 UserHomePath = os.getenv('HOME')
 DBpath = os.path.join(UserHomePath,".local/share/shotwell/data/photo.db")  # Path where Shotwell DB is expected to be.
 Th128path = os.path.join(UserHomePath,".cache/shotwell/thumbs/thumbs128")  # Path where thumbnails are stored.
@@ -216,19 +221,24 @@ def Changes ():
 		It returns True in case it has changed
 		It returns False in other case
 		"""
-	global LastExec, shotwellDBstatDate, lastExecFile
+	global LastExec, lastExecFile
+	shotwellDBstatDate = datetime.fromtimestamp(os.path.getmtime (DBpath))
 	if LastExec == None or itemcheck (lastExecFile) != 'file':
-		logging.info ('Shotwell DB time: ', shotwellDBstatDate)
+		logging.info ('Shotwell DB time: {}'.format(shotwellDBstatDate))
 		if itemcheck (lastExecFile) == 'file':
 			f = open (lastExecFile, 'rb')
 			LastExec = pickle.load (f)
+			f.close ()
 			logging.info ('LastExec from pickle: {}'.format(LastExec))
 		else:
 			LastExec = datetime.now()
-			logging.info ('initializing pickle: {}'.format(LastExec))
+			logging.info ('Initializing pickle: {}'.format(LastExec))
 			return True
 	if shotwellDBstatDate > LastExec:
 		return True
+	logging.debug ('shotwellDB has no changes:')
+	logging.debug ('shotwellDBstatDate: {}'.format(shotwellDBstatDate))
+	logging.debug ('          LastExec: {}'.format(LastExec))
 	return False
 
 
@@ -304,7 +314,7 @@ if __name__ == '__main__':
 	# ===============================
 	# The logging module.
 	# ===============================
-	loginlevel = 'INFO'
+	loginlevel = 'DEBUG'  # INFO ,DEBUG
 	logpath = './'
 	logging_file = os.path.join(logpath, 'Shotwell_event2folder.log')
 
@@ -384,7 +394,6 @@ if __name__ == '__main__':
 		execution = True
 
 		if daemonmode:
-			shotwellDBstatDate = datetime.fromtimestamp(os.path.getmtime (DBpath))
 			execution = Changes ()
 
 		if execution:
@@ -409,8 +418,8 @@ if __name__ == '__main__':
 			if __Schema__ != 20 :
 				print ("This utility may not work properly with an Shotwell DataBase Schema other than 20")
 				print ("DB schema 20 is used on Shotwell version 0.22 or 0.24")
-				print ("Actual DB Schema is %s"%__Schema__)
-				print ("Actual Shotwell Version %s"%__appversion__)
+				print ("Actual DB Schema is {}".format (__Schema__))
+				print ("Actual Shotwell Version {}".format (__appversion__))
 				exit ()
 
 			# Set the more recent Kbs of data and stablishing the limit to move if any.
@@ -443,7 +452,7 @@ if __name__ == '__main__':
 					count += 1 
 					suma += l[0]
 				if count == 0:
-					logging.debug ('\tEvent %s has no photos or videos (is empty). Skipping.' % eventid)
+					logging.debug ('\tEvent {} has no photos or videos (is empty). Skipping.'.format(eventid))
 					continue
 				eventavgtime = suma/count
 				eventtime = datetime.fromtimestamp(eventavgtime)
@@ -451,7 +460,8 @@ if __name__ == '__main__':
 				#  ....TODO.... Check for name inconsistences, and change not allowed characters.
 				if eventname == None : eventname = ""
 				print ("\n\n======================\nProcessing event:(" + str(eventid) + ") " + eventname)
-				logging.info ('\n## Processing event nº' + str(eventid) + ", " + eventname + "(" + str(eventtime) + ")")
+				logging.info ('')
+				logging.info ('## Processing event nº {}: {} ({})'.format(eventid,eventname,eventtime))
 
 				# defining event path:
 				
@@ -510,7 +520,7 @@ if __name__ == '__main__':
 							sep = " "
 						else:
 							logging.debug ("Filename already starts with a full date expression")
-							logging.debug ("updating date on filename")
+							logging.debug ("Checking date on filename")
 							photofilename = photofilename [len(mo.group() ):]
 							if photofilename[0].lower() in '1234567809qwertyuiopasdfghjklñzxcvbnm':
 								sep = " "
@@ -641,6 +651,7 @@ if __name__ == '__main__':
 			if execution:
 				f = open (lastExecFile, 'wb')
 				LastExec = datetime.now()
+				logging.debug ('Creating/updating LastExecFile.dump')
 				pickle.dump (LastExec, f)
 				f.close()
 			time.sleep (sleepseconds)
