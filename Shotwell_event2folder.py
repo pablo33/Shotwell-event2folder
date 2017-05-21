@@ -535,7 +535,6 @@ if __name__ == '__main__':
 					#progress.showprogress (idcounter,"Processing event:({}){}, file:({}){}.".format(eventid, eventname,photoid,editablestring))
 					progress.showprogress (idcounter,"Processing image id:{} ".format(photoid))
 					logging.info ("# Processing({}) {}, filename: {}".format(photoid,editablestring,photofilename))
-					time.sleep (1)
 
 					# Check if file is in the last Kb to move to most recent dir.
 					if mostrecentkbs != 0 and photodate >= datelimit2move_exposure and stars >= morerecent_stars: 
