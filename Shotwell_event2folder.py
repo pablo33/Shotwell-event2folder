@@ -147,8 +147,8 @@ def filemove (origin, dest):
 		if itemcheck (os.path.dirname(dest)) == '':
 			os.makedirs (os.path.dirname(dest))
 		shutil.move (origin, dest)
-	infomsg = "\tfile has been moved. %s" %dummymsg
-	print (infomsg); logging.info (infomsg)
+	#print ("      > file has been moved. {}".format(dummymsg))
+	logging.info ("\tfile has been moved. {}".format(dummymsg))
 	return dest
 
 def Thumbfilepath (ID):
@@ -179,7 +179,7 @@ def Deletethumb (ID):
 		if itemcheck(f) == 'file':
 			if dummy == False:
 				os.remove (f)
-			infomsg = ('Thumbfile for ID (%s) has been removed'%ID)
+			infomsg = ('Thumbfile for ID ({}) has been removed'.format(ID))
 			print (infomsg)
 			logging.info (infomsg)
 
@@ -190,7 +190,7 @@ def get_pid (app):
 	try:
 		pids = check_output(["pidof", app ])
 	except:
-		logging.debug('no %s app is currently running'%(app))
+		logging.debug('no {} process is currently running'.format(app))
 		return None
 	pidlist = pids.split()
 	la = lambda x : int(x)
@@ -208,7 +208,7 @@ def getappstatus (app):
 	return state
 
 def addtoconfigfile (linetoadd):
-	print ("adding a new parameter to the user config file: " + linetoadd.split()[0])
+	print ("adding a new parameter to the user config file: {}".format(linetoadd.split()[0]))
 	f = open(userfileconfig,"a")
 	f.write ("\n" + linetoadd)
 	f.close()
@@ -241,6 +241,34 @@ def Changes ():
 	logging.debug ('          LastExec: {}'.format(LastExec))
 	return False
 
+class Progresspercent:
+	''' Show the progression of an activity in percentage
+	it is swhon on the same line'''
+	def __init__ (self, maxValue, title = '', showpartial=True):
+		if title != '':
+			self.title = " {} :".format(title)  # Name of the 
+		else:
+			self.title = " "
+		self.maxValue = maxValue
+		self.partial = showpartial
+
+	def showprogress (self, p, valuetext = ""):
+		'''
+		Shows the progress in percentage vía stdout, and returns its value again.
+		'''
+		progressvalue = (p / self.maxValue)
+		progresspercent = "{:.2%}".format(progressvalue)
+		if self.partial == True:
+			progresspartial = "({}/{})".format(p,self.maxValue)
+		else:
+			progresspartial = ''
+		progresstext = "{}{}{}{}".format (self.title,valuetext, progresspartial, progresspercent)
+		#sys.stdout.write (progresstext + chr(8)*len(progresstext))
+		sys.stdout.write (progresstext + chr(8)*len(progresstext))
+		if p == self.maxValue:
+			sys.stdout.write('\n')
+		sys.stdout.flush()
+		return progresspercent
 
 if __name__ == '__main__':
 
@@ -257,7 +285,7 @@ if __name__ == '__main__':
 		sys.path.append(appuserpath)
 		import Shotevent2folder_cfg
 	else:
-		print ("\nThere isn't an user config file: " + userfileconfig)
+		print ("\nThere isn't an user config file: {}".format (userfileconfig))
 		# Create a new config file
 		f = open(userfileconfig,"w")
 		f.write ('# Shotwell-event2folder Config file.\n# This is a python file. Be careful and see the sintaxt.\n\n')
@@ -342,7 +370,7 @@ if __name__ == '__main__':
 		logging.critical ("morerecent_stars is not a integer")
 	elif morerecent_stars not in range(-1,6):
 		errmsgs.append ("\n morerecent_stars at configuration out of range. Must be from -1 to 5. (use -1 to move all files)")
-		logging.critical ("morerecent_stars out of range. actual value: "+ str(morerecent_stars))
+		logging.critical ("morerecent_stars out of range. actual value: {}".format (morerecent_stars))
 
 	# exitting if errors econuntered
 	if len (errmsgs) != 0 :
@@ -350,7 +378,7 @@ if __name__ == '__main__':
 			print (a)
 		print ('\nplease revise your config file.','\n ....exitting',sep='\n')
 		print ("This software will attempt to open your configuration file with a text editor (gedit).")
-		os.system ("gedit " + userfileconfig)
+		os.system ("gedit {}".format (userfileconfig))
 		exit()
 
 
@@ -386,7 +414,7 @@ if __name__ == '__main__':
 
 		# Check if Shotwell DB is present
 		if itemcheck (DBpath) != "file":
-			infomsg = 'Shotwell Database is not present, this script is intended to work on a Shotwell Database located at:\n' + DBpath
+			infomsg = 'Shotwell Database is not present, this script is intended to work on a Shotwell Database located at: {}'.format(DBpath)
 			print (infomsg) ; logging.info (infomsg)
 			exit()
 
@@ -400,7 +428,7 @@ if __name__ == '__main__':
 			execution = False
 			for a in range (countdown,0,-1):
 				if getappstatus (['shotwell']):
-					print ('\nWARNING: Shotwell process is alive, Please consider close Shotwell aplication before run this script.')
+					print ('\nWARNING: Shotwell process is running, I will not run meanwhile Shotwell application is running.')
 					logging.info ('Shotwell process is running')
 					if daemonmode:
 						execution = False
@@ -422,6 +450,10 @@ if __name__ == '__main__':
 				print ("Actual Shotwell Version {}".format (__appversion__))
 				exit ()
 
+			totalreg = dbconnection.execute ('SELECT sum (ids) FROM (SELECT count (id) AS ids FROM phototable UNION SELECT count(id) AS ids FROM videotable )').fetchone()[0]
+			progress = Progresspercent (totalreg)
+			idcounter = 0
+
 			# Set the more recent Kbs of data and stablishing the limit to move if any.
 			if mostrecentkbs > 0 :
 				dballitemscursor = dbconnection.cursor ()
@@ -433,7 +465,7 @@ if __name__ == '__main__':
 					if acumulatedKb >= mostrecentkbs :
 						break
 				datelimit2move_exposure = datetime.fromtimestamp(entry[1])
-				logging.info ("Files earlier than " + datelimit2move_exposure.strftime('%Y-%m-%d') + " and with a rating of %s or more"%morerecent_stars + " will be sent to " + librarymostrecentpath)
+				logging.info ("Files earlier than {} and with a rating of {} or more will be sent to {}".format (datelimit2move_exposure.strftime('%Y-%m-%d'), morerecent_stars, librarymostrecentpath))
 				dballitemscursor.close()
 
 			dbeventcursor = dbconnection.cursor ()
@@ -447,9 +479,9 @@ if __name__ == '__main__':
 				times = dbconnection.execute('SELECT exposure_time FROM videotable WHERE event_id = ? and exposure_time is not null UNION select exposure_time from phototable where event_id = ? and exposure_time is not null',(eventid,eventid))
 
 				#    calculating event date by average
-				suma, count = 0, 0 
+				suma, count = 0, 0
 				for l in times:
-					count += 1 
+					count += 1
 					suma += l[0]
 				if count == 0:
 					logging.debug ('\tEvent {} has no photos or videos (is empty). Skipping.'.format(eventid))
@@ -459,7 +491,7 @@ if __name__ == '__main__':
 
 				#  ....TODO.... Check for name inconsistences, and change not allowed characters.
 				if eventname == None : eventname = ""
-				print ("\n\n======================\nProcessing event:(" + str(eventid) + ") " + eventname)
+				# print ("Processing event:({})".format(eventid, eventname), end='')
 				logging.info ('')
 				logging.info ('## Processing event nº {}: {} ({})'.format(eventid,eventname,eventtime))
 
@@ -483,6 +515,7 @@ if __name__ == '__main__':
 
 				# Process each file
 				for p in dbtablecursor:
+					idcounter += 1
 					eventpathF = eventpath
 					photoid, photopath, phototitle, phototimestamp, import_id, DBTable, editable_id, stars = p
 					photodate = datetime.fromtimestamp(phototimestamp)
@@ -490,7 +523,7 @@ if __name__ == '__main__':
 					photofilename = os.path.basename(photopath)
 
 					if itemcheck (photopath) != "file":
-						infomsg = "! Image or video in database is not present at this time. Doing nothing."
+						infomsg = "! Image or video in database is not present at this moment."
 						print (infomsg) ; logging.info (infomsg)
 						continue
 
@@ -499,8 +532,10 @@ if __name__ == '__main__':
 						editablestring = "Editable id:(" + str(editable_id) + ")"
 					else:
 						editablestring = ''
-					infomsg = "# Processing(" + str(photoid) + ") "+ editablestring + " filename: " + photofilename
-					print (infomsg) ; logging.info (infomsg)
+					#progress.showprogress (idcounter,"Processing event:({}){}, file:({}){}.".format(eventid, eventname,photoid,editablestring))
+					progress.showprogress (idcounter,"Processing image id:{} ".format(photoid))
+					logging.info ("# Processing({}) {}, filename: {}".format(photoid,editablestring,photofilename))
+					time.sleep (1)
 
 					# Check if file is in the last Kb to move to most recent dir.
 					if mostrecentkbs != 0 and photodate >= datelimit2move_exposure and stars >= morerecent_stars: 
@@ -550,8 +585,7 @@ if __name__ == '__main__':
 						try:
 							image_metadata = GExiv2.Metadata(photopath)
 						except:
-							infomsg = '\tAn error occurred during obtaining metadata on this file'
-							print (infomsg); logging.info (infomsg)
+							logging.info ('\tAn error occurred during obtaining metadata on this file')
 						else:
 							if image_metadata.get('Iptc.Application2.Caption') != phototitle:
 								mydictofmetadatas = {
@@ -565,11 +599,11 @@ if __name__ == '__main__':
 									image_metadata.set_tag_string (x, mydictofmetadatas[x])
 								if dummy == False :
 									image_metadata.save_file()
-								infomsg = "\tImage title metadata has been updated with database title: " + phototitle + dummymsg
-								print (infomsg) ; logging.info (infomsg)
+								#print ("    Image title metadata has been updated with database title: {}{}".format(phototitle, dummymsg))
+								logging.info ("\tImage title metadata has been updated with database title: {}{}".format(phototitle, dummymsg))
 									
 					dest = os.path.join (eventpathF, photonewfilename)
-					logging.info ("will be sent to :" + dest)
+					logging.info ("destination is set to :" + dest)
 
 					## Deletes thumbnails due a condition. Shotwell will restore deleted thumbnails
 					'''
@@ -584,21 +618,20 @@ if __name__ == '__main__':
 						continue
 					else:
 						#moving files from photopath to dest
+						#print ('\n    moving file {}'.format(photofilename))
 						dest = filemove (photopath, dest)
-			
 						# Changing DB pointer
 						if dummy == False:
-							dbconnection.execute ('UPDATE %s SET filename = ? where id = ?' % DBTable, (dest, photoid))
+							dbconnection.execute ('UPDATE {} SET filename = ? where id = ?'.format(DBTable), (dest, photoid))
 			
 						# adding a folder to scan
 						foldercollection.add (os.path.dirname(photopath))	
 						logging.debug (os.path.dirname(photopath) + ' added to folders list')
-			
-						logging.debug ("Entry %s updated at table %s. %s" % (photoid, DBTable, dummymsg))
+						logging.debug ("Entry {} updated at table {}. {}".format(photoid, DBTable, dummymsg))
 					
 					if editable_id != -1:
 						editable_photo = dbconnection.execute ('SELECT filepath FROM BackingPhotoTable WHERE id = %s' %editable_id).fetchone()[0]
-						editable_dest = os.path.splitext(dest)[0]+'_modified'+os.path.splitext(dest)[1]
+						editable_dest = os.path.splitext(dest)[0] + '_modified' + os.path.splitext(dest)[1]
 						if os.path.dirname(editable_photo) == os.path.dirname(editable_dest) and editable_photo == editable_dest:
 							infomsg = "This file is already on its destination. This file remains on its place."
 							logging.info (infomsg)
@@ -639,9 +672,11 @@ if __name__ == '__main__':
 							continue			
 						if len (os.listdir(i)) == 0:
 							shutil.rmtree (i)
-							infomsg = "\tfolder: %s has been removed. (was empty)" % i
-							print (infomsg)
-							logging.info (infomsg)
+							ftext = i
+							if len (ftext) > 50:
+								ftext = "..." + ftext [-47:]
+							print ("    empty folder removed: {}".format(ftext))
+							logging.info ('Empty folder removed: {}'.format(i))
 							foldercollectionnext.add (os.path.dirname(i))
 							logging.debug ("\tadded next level to re-scan")
 					foldercollection = foldercollectionnext
