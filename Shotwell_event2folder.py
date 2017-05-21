@@ -259,7 +259,7 @@ class Progresspercent:
 		progressvalue = (p / self.maxValue)
 		progresspercent = "{:.2%}".format(progressvalue)
 		if self.partial == True:
-			progresspartial = "({}/{})".format(p,self.maxValue)
+			progresspartial = "({:6}/{:<6})".format(p,self.maxValue)
 		else:
 			progresspartial = ''
 		progresstext = "{}{}{}{}".format (self.title,valuetext, progresspartial, progresspercent)
@@ -405,6 +405,8 @@ if __name__ == '__main__':
 	dummymsg = ''
 	if dummy == True:
 		dummymsg = '(dummy mode)'
+		print ('Running in dummy mode.')
+	print ('Running in daemon mode.')
 
 
 	while True:
@@ -533,7 +535,7 @@ if __name__ == '__main__':
 					else:
 						editablestring = ''
 					#progress.showprogress (idcounter,"Processing event:({}){}, file:({}){}.".format(eventid, eventname,photoid,editablestring))
-					progress.showprogress (idcounter,"Processing image id:{} ".format(photoid))
+					progress.showprogress (idcounter,"Processing entry id:{:6} ".format(photoid))
 					logging.info ("# Processing({}) {}, filename: {}".format(photoid,editablestring,photofilename))
 
 					# Check if file is in the last Kb to move to most recent dir.
