@@ -1,6 +1,9 @@
 #!/usr/bin/python3
 
 import sqlite3, os, sys, shutil, logging, re, time, pickle
+from hashlib import md5
+
+
 from datetime import datetime
 import gi  # used to avoid Gi warning
 gi.require_version('GExiv2', '0.10')  # used to avoid Gi warning
@@ -270,6 +273,17 @@ class Progresspercent:
 		sys.stdout.flush()
 		return progresspercent
 
+def md5hash (filepath):
+	""" Given a fullpath to a file, it will return the md5 hashstring
+		it reads in bytes mode and it will load the full file in memory
+		"""
+	hasher = md5()
+	with open(filepath, 'rb') as afile:
+		buf = afile.read()
+		hasher.update(buf)
+	return (hasher.hexdigest())
+
+
 if __name__ == '__main__':
 
 	# Load user config:
@@ -513,13 +527,13 @@ if __name__ == '__main__':
 
 				# retrieving event's photos and videos
 				dbtablecursor = dbconnection.cursor()
-				dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable, editable_id, rating FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable, -1 AS editable_id, rating FROM VideoTable WHERE event_id = ?",(eventid, eventid))
+				dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable, editable_id, rating, md5 FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable, -1 AS editable_id, rating, md5 FROM VideoTable WHERE event_id = ?",(eventid, eventid))
 
 				# Process each file
 				for p in dbtablecursor:
 					idcounter += 1
 					eventpathF = eventpath
-					photoid, photopath, phototitle, phototimestamp, import_id, DBTable, editable_id, stars = p
+					photoid, photopath, phototitle, phototimestamp, import_id, DBTable, editable_id, stars, filemd5 = p
 					photodate = datetime.fromtimestamp(phototimestamp)
 					photodateimport = datetime.fromtimestamp(import_id)
 					photofilename = os.path.basename(photopath)
@@ -612,6 +626,12 @@ if __name__ == '__main__':
 						Deletethumb (photoid)
 						'''
 
+					## Checks the md5 hash of the files and it compares it with the DB
+						# Note that Shotwell updates the md5hash if the file has changed externally
+					'''fh = md5hash (photopath)
+					logging.debug ("md5 in DB is the same as the file: {}".format(fh == filemd5))
+						'''
+					
 					# file operations
 					if photopath == dest:
 						infomsg = "This file is already on its destination. This file remains on its place."
@@ -624,7 +644,6 @@ if __name__ == '__main__':
 						# Changing DB pointer
 						if dummy == False:
 							dbconnection.execute ('UPDATE {} SET filename = ? where id = ?'.format(DBTable), (dest, photoid))
-			
 						# adding a folder to scan
 						foldercollection.add (os.path.dirname(photopath))	
 						logging.debug (os.path.dirname(photopath) + ' added to folders list')
