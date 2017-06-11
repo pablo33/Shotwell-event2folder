@@ -312,10 +312,10 @@ if __name__ == '__main__':
 	Default_Config_options = (
 		('librarymainpath',	 		'\"{}/Pictures\"'.format(UserHomePath), '# Main path where your imeges are or you want them to be.'),
 		('dummy',			 		'False', '# Dummy mode. True will not perform any changes to DB or File structure.'),
-		('insertdateinfilename',	'True', '#  Filenames will be renamed with starting with a full-date expression.'),
+		('insertdateinfilename',	'False', '#  Filenames will be renamed with starting with a full-date expression.'),
 		('clearfolders', 			'True' , '# Delete empty folders.'),
 		('librarymostrecentpath',	'\"{}/Pictures/mostrecent\"'.format(UserHomePath), '# Path to send the most recent pictures. You can set this path synced with Dropbox pej.'),
-		('mostrecentkbs', 			'2000000000', '# Max amount of Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there.'),
+		('mostrecentkbs', 			'0', '# Max amount of Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there. (2000000000 is 2Gb)'),
 		('morerecent_stars',		'-1', '# use values from -1 to 5 . Filter pictures or videos by rating to send to the more recent pictures path as destination. use -1 to move all files or ignore this option (default).'),
 		('importtitlefromfilenames','False', '# Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.'),
 		('inserttitlesinfiles',		'False', '# Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title\'s in database is empty, it will set this retrieved title in both file, and database.'),
