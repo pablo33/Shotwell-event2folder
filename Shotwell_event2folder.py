@@ -553,7 +553,8 @@ if __name__ == '__main__':
 					logging.info ("# Processing({}) {}, filename: {}".format(photoid,editablestring,photofilename))
 
 					# Check if file is in the last Kb to move to most recent dir.
-					if mostrecentkbs != 0 and photodate >= datelimit2move_exposure and stars >= morerecent_stars: 
+					# It also overrides files from trash beign sent to the more recent dir.
+					if mostrecentkbs != 0 and photodate >= datelimit2move_exposure and stars >= morerecent_stars and eventid != -1: 
 						logging.info ("File will be sent to the recent pictures folder")
 						eventpathF = eventpathlast
 
