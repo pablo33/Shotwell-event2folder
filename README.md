@@ -16,7 +16,7 @@ and even more, optionally:
 
 Python3, GExiv2 from Gi.repository
 
-This script has been tesded with Shotwell 0.18.0 to 0.24.2 (ubuntu 14.10 to 16.10).
+This script has been tesded with Shotwell 0.18.0 to 0.26.3 (ubuntu 14.10 to 17.10).
 
 **Usage:**
 Just launch the script from command line, this will create a config file, edit to fit your needings and run it again.
