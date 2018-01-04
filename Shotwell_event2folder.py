@@ -771,6 +771,8 @@ if __name__ == '__main__':
 					Entry_title = entry [15]
 					Entry_comment = entry [19]
 
+					Entry_tag_id = 'video-%016x,'%Entry_id
+
 					if itemcheck (sourcefile) != 'file':
 						logging.warning ('\tThis file cannot be accessed, or does not exist at this very moment.')
 						continue
@@ -785,7 +787,7 @@ if __name__ == '__main__':
 					logging.debug ('\tffmpeg exitted with code: {}'.format(ffmpeg_status))
 					if ffmpeg_status == 0:
 						# (ffmpeg exitted with no errors)
-						logging.info ('\tFile converted, adding new file to DB and flagging old one')
+						logging.info ('\tFile converted, adding or updating new entries to DB')
 						# Getting new values for update DB registry.
 						newMD5 = md5hash (newFilename)
 						newFilesize = os.path.getsize (newFilename)
@@ -815,8 +817,20 @@ if __name__ == '__main__':
 						if videoConvlineID is None:
 							logging.debug ('Inserting new line at VideoTable')
 							dbconnection.execute ('INSERT INTO videotable VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ', newEntry )
+							# Adding new videofiles to tag table (cloning values)
+							dbconnection.commit ()
+							newEntry_id = dbconnection.execute ('SELECT max(id) FROM videotable').fetchone()[0]
+							newVideoTag_id = 'video-%016x'%newEntry_id + ','
+							TagCursor = dbconnection.cursor ()
+							TagCursor.execute ("SELECT id, photo_id_list FROM tagtable WHERE photo_id_list LIKE '%{}%'".format(Entry_tag_id,))
+							for TagEntry in TagCursor:
+								lineID , tagtext = TagEntry[0], TagEntry[1]
+								newTagText = tagtext + newVideoTag_id
+								dbconnection.execute ('UPDATE tagtable SET photo_id_list=? WHERE id=?',(newTagText,lineID))
+
 						else:
 							logging.debug ('Updating an existent registry for converted video.')
+							# This will not update or clone the tag registry, it will preserve existent converted video tag attributes and rating.
 							dbconnection.execute ('UPDATE videotable SET filesize=?, import_id=?, md5=?, time_created=? WHERE id = ?', (newFilesize, newImportID, newMD5, int(now.timestamp()), videoConvlineID[0]))
 						
 						# Set original video as rejected. (rating = -1)
