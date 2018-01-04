@@ -324,7 +324,7 @@ if __name__ == '__main__':
 		('sleepseconds','120','# Number of seconds to sleep, until another check in daemon mode.'),
 		('conv_mov','False','# Convert .MOV movies with ffmpeg to shrink their size'),
 		('conv_bitrate_kbs','1200','# Movies under this average bitrate will not be processed'),
-		('conv_flag',"'(conv)'",'# Only convert .mov videos wich ends on this string. leave an empty string to convert all .MOV videos')
+		('conv_flag',"''",'# Only convert .mov videos wich ends on this string. leave an empty string to convert all .MOV videos')
 		)
 
 	retrievedvalues = dict ()
@@ -810,13 +810,14 @@ if __name__ == '__main__':
 									Entry_comment
 									)
 						# Fetching videoentry for an already converted video.
-						videoConvlineID = dbconnection.execute ('SELECT id FROM videotable WHERE filename=? ', (newFilename,)).fetchone()[0]
+						videoConvlineID = dbconnection.execute ('SELECT id FROM videotable WHERE filename=? ', (newFilename,)).fetchone()
+						print ('videoConvlineID:', videoConvlineID)
 						if videoConvlineID is None:
 							logging.debug ('Inserting new line at VideoTable')
 							dbconnection.execute ('INSERT INTO videotable VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ', newEntry )
 						else:
 							logging.debug ('Updating an existent registry for converted video.')
-							dbconnection.execute ('UPDATE videotable SET filesize=?, import_id=?, md5=?, time_created=? WHERE id = ?', (newFilesize, newImportID, newMD5, int(now.timestamp()), videoConvlineID))
+							dbconnection.execute ('UPDATE videotable SET filesize=?, import_id=?, md5=?, time_created=? WHERE id = ?', (newFilesize, newImportID, newMD5, int(now.timestamp()), videoConvlineID[0]))
 						
 						# Set original video as rejected. (rating = -1)
 						dbconnection.execute ('UPDATE videotable SET rating=-1 WHERE id = ?', (Entry_id,))
