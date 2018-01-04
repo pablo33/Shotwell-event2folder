@@ -750,12 +750,12 @@ if __name__ == '__main__':
 				dbMOVcursor = dbconnection.cursor()
 				dbMOVcursor.execute ("SELECT ROUND ((filesize/clip_duration)/(width*height/1000)) AS bitrate,* FROM videotable WHERE \
 						filename LIKE '%{}.MOV' \
-						AND bitrate > 1200 \
+						AND bitrate > {} \
 						AND filename NOT LIKE '%_c.mov' \
 						AND filename NOT LIKE '%_f.mov' \
 						AND rating > -1 \
 						AND is_interpretable = 1 \
-						AND (event_id <> -1 OR (event_id = -1 and exposure_time = 0))".format (conv_flag)
+						AND (event_id <> -1 OR (event_id = -1 and exposure_time = 0))".format (conv_flag, conv_bitrate_kbs)
 						)
 				for entry in dbMOVcursor:
 					Entry_id = entry [1]
@@ -781,8 +781,9 @@ if __name__ == '__main__':
 						os.remove(newFilename)
 						logging.warning ('\tIt seems that an old converted file was there, it has been deleted.')
 					
-					status = os.system ('ffmpeg -i "{}" "{}"'.format(sourcefile,newFilename))
-					if status == 0:
+					ffmpeg_status = os.system ('ffmpeg -i "{}" "{}"'.format(sourcefile,newFilename))
+					logging.debug ('\tffmpeg exitted with code: {}'.format(ffmpeg_status))
+					if ffmpeg_status == 0:
 						# (ffmpeg exitted with no errors)
 						logging.info ('\tFile converted, adding new file to DB and flagging old one')
 						# Getting new values for update DB registry.
