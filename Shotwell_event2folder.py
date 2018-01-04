@@ -308,19 +308,23 @@ if __name__ == '__main__':
 		Shotevent2folder_cfg = None
 
 	abort = False
+
 	# Getting variables from user's config file and/or updating it.
 	Default_Config_options = (
-		('librarymainpath',	 		'\"{}/Pictures\"'.format(UserHomePath), '# Main path where your imeges are or you want them to be.'),
+		('librarymainpath',	 		"'{}/Pictures'".format(UserHomePath), '# Main path where your imeges are or you want them to be.'),
 		('dummy',			 		'False', '# Dummy mode. True will not perform any changes to DB or File structure.'),
 		('insertdateinfilename',	'False', '#  Filenames will be renamed with starting with a full-date expression.'),
 		('clearfolders', 			'True' , '# Delete empty folders.'),
-		('librarymostrecentpath',	'\"{}/Pictures/mostrecent\"'.format(UserHomePath), '# Path to send the most recent pictures. You can set this path synced with Dropbox pej.'),
+		('librarymostrecentpath',	"'{}/Pictures/mostrecent'".format(UserHomePath), '# Path to send the most recent pictures. You can set this path synced with Dropbox pej.'),
 		('mostrecentkbs', 			'0', '# Max amount of Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there. (2000000000 is 2Gb)'),
 		('morerecent_stars',		'-1', '# use values from -1 to 5 . Filter pictures or videos by rating to send to the more recent pictures path as destination. use -1 to move all files or ignore this option (default).'),
 		('importtitlefromfilenames','False', '# Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.'),
 		('inserttitlesinfiles',		'False', '# Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title\'s in database is empty, it will set this retrieved title in both file, and database.'),
 		('daemonmode','False','# It keeps the script running and process Shotwell DataBase if it has changes since last execution.'),
 		('sleepseconds','120','# Number of seconds to sleep, until another check in daemon mode.'),
+		('conv_mov','False','# Convert .MOV movies with ffmpeg to shrink their size'),
+		('conv_bitrate_kbs','1200','# Movies under this average bitrate will not be processed'),
+		('conv_flag',"'(conv)'",'# Only convert .mov videos wich ends on this string. leave an empty string to convert all .MOV videos')
 		)
 
 	retrievedvalues = dict ()
@@ -351,6 +355,9 @@ if __name__ == '__main__':
 	inserttitlesinfiles = retrievedvalues ['inserttitlesinfiles']
 	daemonmode = retrievedvalues ['daemonmode']
 	sleepseconds = retrievedvalues ['sleepseconds']
+	conv_mov = retrievedvalues ['conv_mov']
+	conv_bitrate_kbs = retrievedvalues ['conv_bitrate_kbs']
+	conv_flag = retrievedvalues ['conv_flag']
 	
 
 	# ===============================
@@ -386,7 +393,29 @@ if __name__ == '__main__':
 		errmsgs.append ("\n morerecent_stars at configuration out of range. Must be from -1 to 5. (use -1 to move all files)")
 		logging.critical ("morerecent_stars out of range. actual value: {}".format (morerecent_stars))
 
-	# exitting if errors econuntered
+	#	--conv_mov
+	if type(conv_mov) != bool:
+		errmsgs.append ("\n conv_mov at configuration file must be True or False.")
+		logging.critical ("conv_mov value is not boolean.")
+	else:
+		#	--conv_bitrate_kbs
+		if conv_mov:
+			if type(conv_bitrate_kbs) != int:
+				errmsgs.append ("\n conv_bitrate_kbs at configuration file is not an integer and it should be greater than 800.")
+				logging.critical ("conv_bitrate_kbs is not a integer")
+			elif conv_bitrate_kbs < 800:
+				errmsgs.append ("\n conv_bitrate_kbs at configuration is very low. It should be greater than 800. (A value of 1000 is great for HD videos)")
+				logging.critical ("conv_bitrate_kbs out of range. actual value: {}".format (conv_bitrate_kbs))
+		#  --conv_flag
+			if type (conv_flag) != str:
+					errmsgs.append ("\n conv_flag at configuration file is not an string. It marks the video file to be converted, a good choice is (conv).")
+					logging.critical ("conv_flag is not a string")
+			elif conv_flag in ('_c','_f'):
+					errmsgs.append ("\n conv_flag can't get this two values: _c or _f. A file ending in _c means a converted video, and _f means a failed conversion. Please choose other values.")
+					logging.critical ("conv_flag is using Predefined values")
+
+
+	# exit if errors are econuntered
 	if len (errmsgs) != 0 :
 		for a in errmsgs:
 			print (a)
@@ -409,7 +438,11 @@ if __name__ == '__main__':
 	'importtitlefromfilenames':	importtitlefromfilenames,
 	'daemonmode'			:	daemonmode,
 	'sleepseconds'			:	sleepseconds,
+	'conv_mov'				:	conv_mov,
+	'conv_bitrate_kbs'		:	conv_bitrate_kbs,
+	'conv_flag'				:	conv_flag,
 	}
+
 	for a in parametersdyct:
 		logging.info ('{}{} = {}'.format(" "*(30-len(a)), a, parametersdyct[a]))
 	logging.info('')
@@ -420,13 +453,23 @@ if __name__ == '__main__':
 	if dummy == True:
 		dummymsg = '(dummy mode)'
 		print ('Running in dummy mode.')
-	print ('Running in daemon mode.')
 
+	# Checking if ffmpeg is at the system
+	ffmpeg = False
+	if conv_mov:
+		if os.system('ffmpeg --help') != 0:
+			print ('No ffmpeg tool is found. I will not process video files.')
+			print ('You can install it by typing $sudo apt-get install ffmpg.')
+		else:
+			print ('ffmpeg is present.')
+			ffmpeg = True
+
+	if daemonmode:
+		print ('Running in daemon mode.')
 
 	while True:
 		foldercollection = set ()
 		datelimit2move_exposure = datetime.now()
-
 
 		# Check if Shotwell DB is present
 		if itemcheck (DBpath) != "file":
@@ -678,8 +721,6 @@ if __name__ == '__main__':
 			dbeventcursor.close()
 			dbconnection.commit()
 			logging.debug ("Changes were commited")
-			dbconnection.close ()
-			logging.debug ("DB connection was closed")
 
 			# Cleaning empty folders
 			if clearfolders == True:
@@ -702,6 +743,101 @@ if __name__ == '__main__':
 							logging.debug ("\tadded next level to re-scan")
 					foldercollection = foldercollectionnext
 					foldercollectionnext = set()
+
+			# Checking and Converting MOV files
+			if conv_mov and ffmpeg:
+				newImportID = int(now.timestamp())
+				print ('Checking and Converting .MOV videofiles.')
+				dbMOVcursor = dbconnection.cursor()
+				dbMOVcursor.execute ("SELECT ROUND ((filesize/clip_duration)/(width*height/1000)) AS bitrate,* FROM videotable WHERE \
+						filename LIKE '%{}.MOV' \
+						AND bitrate > 1200 \
+						AND filename NOT LIKE '%_c.mov' \
+						AND filename NOT LIKE '%_f.mov' \
+						AND rating > -1 \
+						AND is_interpretable = 1 \
+						AND (event_id <> -1 OR (event_id = -1 and exposure_time = 0))".format (conv_flag)
+						)
+				for entry in dbMOVcursor:
+					print (entry,'\n')
+					Entry_id = entry [1]
+					sourcefile = entry[2]
+					Entry_width = entry [3]
+					Entry_height = entry [4]
+					Entry_clip_duration = entry [5]
+					Entry_filesize = entry [7]
+					Entry_timestamp = entry [8]
+					Entry_exposure_time = entry [9]
+					Entry_event_id = entry [11]
+					Entry_rating = entry [14]
+					Entry_title = entry [15]
+					Entry_comment = entry [19]
+
+					if itemcheck (sourcefile) != 'file':
+						logging.warning ('\tThis file cannot be accessed, or does not exist at this very moment.')
+						continue
+					
+					logging.info ('Processing file with ffmpeg: {}'.format(sourcefile))
+					newFilename = os.path.splitext(sourcefile)[0]+'_c.mov'
+					print ('newfilename:',newFilename)
+					if itemcheck (newFilename) == 'file':
+						os.remove(newFilename)
+						logging.warning ('\tIt seems that an old converted file was there, it has been deleted.')
+					status = os.system ('ffmpeg -i "{}" "{}"'.format(sourcefile,newFilename))
+					print ('status:',status)
+					
+					if status == 0:
+						logging.info ('\tFile converted, adding new file to DB and flagging old one')
+						# Inserting registry for converted video.
+						newMD5 = md5hash (newFilename)
+						newFilesize = os.path.getsize (newFilename)
+						newEntry = (None,
+									newFilename,
+									Entry_width,
+									Entry_height,
+									Entry_clip_duration,
+									1,
+									newFilesize,
+									Entry_timestamp,
+									Entry_exposure_time,
+									newImportID,
+									Entry_event_id,
+									newMD5,
+									int(now.timestamp()),
+									Entry_rating,
+									Entry_title,
+									None,
+									None,
+									0,
+									Entry_comment
+									)
+						print (newEntry)
+						# Fetching videoentry for an already converted video.
+						videoConvlineID = dbconnection.execute ('SELECT id FROM videotable WHERE filename=? ', (newFilename,)).fetchone()[0]
+						print ('videoline:', videoConvlineID)
+						if videoConvlineID is None:
+							logging.debug ('Inserting new line at VideoTable')
+							dbconnection.execute ('INSERT INTO videotable VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ', newEntry )
+						else:
+							logging.debug ('Updating an existent registry for converted video.')
+							dbconnection.execute ('UPDATE videotable SET filesize=?, import_id=?, md5=?, time_created=? WHERE id = ?', (newFilesize, newImportID, newMD5, int(now.timestamp()), videoConvlineID))
+						# Set original video as rejected. (rating = -1)
+						dbconnection.execute ('UPDATE videotable SET rating=-1 WHERE id = ?', (Entry_id,))
+
+					else:
+						# ffmpeg encounterered errors
+						if itemcheck (newFilename) == 'file':
+							os.remove(newFilename)
+						failedName = os.path.splitext(sourcefile)[0]+'_f.mov'
+						os.rename (sourcefile, failedName)
+						dbconnection.execute('UPDATE videotable SET filename=? WHERE id=?', (failedName,Entry_id))
+
+					dbconnection.commit()
+				dbMOVcursor.close()
+			# Closing db Connection
+			dbconnection.close ()
+			logging.debug ("DB connection was closed")
+
 
 		if daemonmode:
 			if execution:
