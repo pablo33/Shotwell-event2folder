@@ -747,7 +747,6 @@ if __name__ == '__main__':
 			# Checking and Converting MOV files
 			if conv_mov and ffmpeg:
 				newImportID = int(now.timestamp())
-				print ('Checking and Converting .MOV videofiles.')
 				dbMOVcursor = dbconnection.cursor()
 				dbMOVcursor.execute ("SELECT ROUND ((filesize/clip_duration)/(width*height/1000)) AS bitrate,* FROM videotable WHERE \
 						filename LIKE '%{}.MOV' \
@@ -759,7 +758,6 @@ if __name__ == '__main__':
 						AND (event_id <> -1 OR (event_id = -1 and exposure_time = 0))".format (conv_flag)
 						)
 				for entry in dbMOVcursor:
-					print (entry,'\n')
 					Entry_id = entry [1]
 					sourcefile = entry[2]
 					Entry_width = entry [3]
@@ -779,16 +777,15 @@ if __name__ == '__main__':
 					
 					logging.info ('Processing file with ffmpeg: {}'.format(sourcefile))
 					newFilename = os.path.splitext(sourcefile)[0]+'_c.mov'
-					print ('newfilename:',newFilename)
 					if itemcheck (newFilename) == 'file':
 						os.remove(newFilename)
 						logging.warning ('\tIt seems that an old converted file was there, it has been deleted.')
-					status = os.system ('ffmpeg -i "{}" "{}"'.format(sourcefile,newFilename))
-					print ('status:',status)
 					
+					status = os.system ('ffmpeg -i "{}" "{}"'.format(sourcefile,newFilename))
 					if status == 0:
+						# (ffmpeg exitted with no errors)
 						logging.info ('\tFile converted, adding new file to DB and flagging old one')
-						# Inserting registry for converted video.
+						# Getting new values for update DB registry.
 						newMD5 = md5hash (newFilename)
 						newFilesize = os.path.getsize (newFilename)
 						newEntry = (None,
@@ -811,19 +808,18 @@ if __name__ == '__main__':
 									0,
 									Entry_comment
 									)
-						print (newEntry)
 						# Fetching videoentry for an already converted video.
 						videoConvlineID = dbconnection.execute ('SELECT id FROM videotable WHERE filename=? ', (newFilename,)).fetchone()[0]
-						print ('videoline:', videoConvlineID)
 						if videoConvlineID is None:
 							logging.debug ('Inserting new line at VideoTable')
 							dbconnection.execute ('INSERT INTO videotable VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ', newEntry )
 						else:
 							logging.debug ('Updating an existent registry for converted video.')
 							dbconnection.execute ('UPDATE videotable SET filesize=?, import_id=?, md5=?, time_created=? WHERE id = ?', (newFilesize, newImportID, newMD5, int(now.timestamp()), videoConvlineID))
+						
 						# Set original video as rejected. (rating = -1)
 						dbconnection.execute ('UPDATE videotable SET rating=-1 WHERE id = ?', (Entry_id,))
-
+						
 					else:
 						# ffmpeg encounterered errors
 						if itemcheck (newFilename) == 'file':
