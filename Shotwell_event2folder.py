@@ -320,11 +320,12 @@ if __name__ == '__main__':
 		('morerecent_stars',		'-1', '# use values from -1 to 5 . Filter pictures or videos by rating to send to the more recent pictures path as destination. use -1 to move all files or ignore this option (default).'),
 		('importtitlefromfilenames','False', '# Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.'),
 		('inserttitlesinfiles',		'False', '# Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title\'s in database is empty, it will set this retrieved title in both file, and database.'),
-		('daemonmode','False','# It keeps the script running and process Shotwell DataBase if it has changes since last execution.'),
-		('sleepseconds','120','# Number of seconds to sleep, until another check in daemon mode.'),
-		('conv_mov','False','# Convert .MOV movies with ffmpeg to shrink their size'),
-		('conv_bitrate_kbs','1200','# Movies under this average bitrate will not be processed'),
-		('conv_flag',"''",'# Only convert .mov videos wich ends on this string. leave an empty string to convert all .MOV videos')
+		('daemonmode',				'False','# It keeps the script running and process Shotwell DataBase if it has changes since last execution.'),
+		('sleepseconds',			'120','# Number of seconds to sleep, until another check in daemon mode.'),
+		('conv_mov',				'False','# Convert .MOV movies with ffmpeg to shrink their size'),
+		('conv_bitrate_kbs',		'1200','# Movies under this average bitrate will not be processed'),
+		('conv_flag',				"''",'# Only convert .mov videos wich ends on this string. leave an empty string to convert all .MOV videos.'),
+		('conv_extension',			"'MOV'", '# Filter video conversion to this kind of movies, leave an empty string to convert all file formats.'),
 		)
 
 	retrievedvalues = dict ()
@@ -358,12 +359,13 @@ if __name__ == '__main__':
 	conv_mov = retrievedvalues ['conv_mov']
 	conv_bitrate_kbs = retrievedvalues ['conv_bitrate_kbs']
 	conv_flag = retrievedvalues ['conv_flag']
+	conv_extension = retrievedvalues ['conv_extension']
 	
 
 	# ===============================
 	# The logging module.
 	# ===============================
-	loginlevel = 'INFO'  # INFO ,DEBUG
+	loginlevel = 'DEBUG'  # INFO ,DEBUG
 	logpath = './'
 	logging_file = os.path.join(logpath, 'Shotwell_event2folder.log')
 
@@ -413,6 +415,9 @@ if __name__ == '__main__':
 			elif conv_flag in ('_c','_f'):
 					errmsgs.append ("\n conv_flag can't get this two values: _c or _f. A file ending in _c means a converted video, and _f means a failed conversion. Please choose other values.")
 					logging.critical ("conv_flag is using Predefined values")
+		#  --conv_extension
+			if conv_extension == '':
+				conv_extension = '%'
 
 
 	# exit if errors are econuntered
@@ -441,6 +446,7 @@ if __name__ == '__main__':
 	'conv_mov'				:	conv_mov,
 	'conv_bitrate_kbs'		:	conv_bitrate_kbs,
 	'conv_flag'				:	conv_flag,
+	'conv_extension'		:	conv_extension,
 	}
 
 	for a in parametersdyct:
@@ -746,16 +752,18 @@ if __name__ == '__main__':
 
 			# Checking and Converting MOV files
 			if conv_mov and ffmpeg:
+				logging.debug ('Querying DB for video conversions.')
 				newImportID = int(now.timestamp())
 				dbMOVcursor = dbconnection.cursor()
-				dbMOVcursor.execute ("SELECT ROUND ((filesize/clip_duration)/(width*height/1000)) AS bitrate,* FROM videotable WHERE \
-						filename LIKE '%{}.MOV' \
-						AND bitrate > {} \
+				dbMOVcursor.execute (
+						"SELECT ROUND ((filesize/clip_duration)/(width*height/1000)) AS bitrate,* FROM videotable WHERE \
+						filename LIKE '%{0}.{1}' \
+						AND bitrate > {2} \
 						AND filename NOT LIKE '%_c.mov' \
-						AND filename NOT LIKE '%_f.mov' \
+						AND filename NOT LIKE '%_f.{1}' \
 						AND rating > -1 \
 						AND is_interpretable = 1 \
-						AND (event_id <> -1 OR (event_id = -1 and exposure_time = 0))".format (conv_flag, conv_bitrate_kbs)
+						AND (event_id <> -1 OR (event_id = -1 and exposure_time = 0))".format (conv_flag, conv_extension, conv_bitrate_kbs,)
 						)
 				for entry in dbMOVcursor:
 					Entry_id = entry [1]
@@ -798,12 +806,11 @@ if __name__ == '__main__':
 						# (ffmpeg exitted with no errors)
 						logging.info ('\tFile converted, adding or updating new entries to DB')
 						# Getting new values for update DB registry.
+						newMD5 = 0
+						newFilesize = 0
 						if dummy == False:
 							newMD5 = md5hash (newFilename)
 							newFilesize = os.path.getsize (newFilename)
-						else:
-							newMD5 = 0
-							newFilesize = 0
 						newEntry = (None,
 									newFilename,
 									Entry_width,
@@ -827,7 +834,7 @@ if __name__ == '__main__':
 						# Fetching videoentry for an already converted video.
 						videoConvlineID = dbconnection.execute ('SELECT id FROM videotable WHERE filename=? ', (newFilename,)).fetchone()
 						if videoConvlineID is None:
-							logging.debug ('Inserting new line at VideoTable.{}'.format(dummymsg))
+							logging.debug ('\tInserting new line at VideoTable.{}'.format(dummymsg))
 							if dummy == False:
 								dbconnection.execute ('INSERT INTO videotable VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ', newEntry )
 								# Adding new videofiles to tag table (cloning values)
@@ -842,7 +849,7 @@ if __name__ == '__main__':
 									dbconnection.execute ('UPDATE tagtable SET photo_id_list=? WHERE id=?',(newTagText,lineID))
 
 						else:
-							logging.debug ('Updating an existent registry for converted video.{}'.format(dummymsg))
+							logging.debug ('\tUpdating an existent registry for converted video.{}'.format(dummymsg))
 							# This will not update or clone the tag registry, it will preserve existent converted video tag attributes and rating.
 							if dummy == False:
 								dbconnection.execute ('UPDATE videotable SET filesize=?, import_id=?, md5=?, time_created=? WHERE id = ?', (newFilesize, newImportID, newMD5, int(now.timestamp()), videoConvlineID[0]))
@@ -856,7 +863,7 @@ if __name__ == '__main__':
 						if dummy == False:
 							if itemcheck (newFilename) == 'file':
 								os.remove(newFilename)
-							failedName = os.path.splitext(sourcefile)[0]+'_f.mov'
+							failedName = os.path.splitext(sourcefile)[0]+'_f.{}'.format (conv_extension)
 							os.rename (sourcefile, failedName)
 							dbconnection.execute('UPDATE videotable SET filename=? WHERE id=?', (failedName,Entry_id))
 
