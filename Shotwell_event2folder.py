@@ -405,9 +405,6 @@ if __name__ == '__main__':
 			if type(conv_bitrate_kbs) != int:
 				errmsgs.append ("\n conv_bitrate_kbs at configuration file is not an integer and it should be greater than 800.")
 				logging.critical ("conv_bitrate_kbs is not a integer")
-			elif conv_bitrate_kbs < 800:
-				errmsgs.append ("\n conv_bitrate_kbs at configuration is very low. It should be greater than 800. (A value of 1000 is great for HD videos)")
-				logging.critical ("conv_bitrate_kbs out of range. actual value: {}".format (conv_bitrate_kbs))
 		#  --conv_flag
 			if type (conv_flag) != str:
 					errmsgs.append ("\n conv_flag at configuration file is not an string. It marks the video file to be converted, a good choice is (conv).")
