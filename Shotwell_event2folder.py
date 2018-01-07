@@ -803,6 +803,12 @@ if __name__ == '__main__':
 					else:
 						ffmpeg_status = 0
 					logging.debug ('\tffmpeg exitted with code: {}{}'.format(ffmpeg_status, dummymsg))
+
+					if getappstatus (['shotwell']):
+						print ('\nWARNING: Shotwell process is running, I will not run meanwhile Shotwell application is running.')
+						logging.info ('Shotwell process is running. Aborting current conversion.')
+						ffmpeg_status = None  # Exit conversion sesion.
+
 					if ffmpeg_status == 0:
 						# (ffmpeg exitted with no errors)
 						logging.info ('\tFile converted, adding or updating new entries to DB')
@@ -864,12 +870,16 @@ if __name__ == '__main__':
 						if dummy == False:
 							if itemcheck (newFilename) == 'file':
 								os.remove(newFilename)
-							failedName = os.path.splitext(sourcefile)[0]+'_f.{}'.format (conv_extension)
-							os.rename (sourcefile, failedName)
-							dbconnection.execute('UPDATE videotable SET filename=? WHERE id=?', (failedName,Entry_id))
+							if ffmpeg_status is not None:
+								failedName = os.path.splitext(sourcefile)[0]+'_f.{}'.format (conv_extension)
+								os.rename (sourcefile, failedName)
+								dbconnection.execute('UPDATE videotable SET filename=? WHERE id=?', (failedName,Entry_id))
+							else:
+								break
 
 					if dummy == False:
 						dbconnection.commit()
+					
 				dbMOVcursor.close()
 			# Closing db Connection
 			dbconnection.close ()
