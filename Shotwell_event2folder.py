@@ -322,9 +322,9 @@ if __name__ == '__main__':
 		('inserttitlesinfiles',		'False', '# Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title\'s in database is empty, it will set this retrieved title in both file, and database.'),
 		('daemonmode',				'False','# It keeps the script running and process Shotwell DataBase if it has changes since last execution.'),
 		('sleepseconds',			'120','# Number of seconds to sleep, until another check in daemon mode.'),
-		('conv_mov',				'False','# Convert .MOV movies with ffmpeg to shrink their size'),
+		('conv_mov',				'False','# Convert movies with ffmpeg to shrink their size'),
 		('conv_bitrate_kbs',		'1200','# Movies under this average bitrate will not be processed'),
-		('conv_flag',				"''",'# Only convert .mov videos wich ends on this string. leave an empty string to convert all .MOV videos.'),
+		('conv_flag',				"''",'# Only convert .mov videos wich ends on this string. leave an empty string to convert all videos.'),
 		('conv_extension',			"'MOV'", '# Filter video conversion to this kind of movies, leave an empty string to convert all file formats.'),
 		)
 
@@ -445,6 +445,11 @@ if __name__ == '__main__':
 	'conv_flag'				:	conv_flag,
 	'conv_extension'		:	conv_extension,
 	}
+
+	# Inserting Escape chars for SQL querying
+	conv_flag = conv_flag.replace ('_','/_')
+	conv_flag = conv_flag.replace ('%','/%')
+	conv_flag = conv_flag.replace ('/','//')
 
 	for a in parametersdyct:
 		logging.info ('{}{} = {}'.format(" "*(30-len(a)), a, parametersdyct[a]))
@@ -754,12 +759,11 @@ if __name__ == '__main__':
 				dbMOVcursor = dbconnection.cursor()
 				dbMOVcursor.execute (
 						"SELECT ROUND ((filesize/clip_duration)/(width*height/1000)) AS bitrate,* FROM videotable WHERE \
-						filename LIKE '%{0}.{1}' \
+						filename LIKE '%{0}.{1}' ESCAPE '/' \
 						AND bitrate > {2} \
-						AND filename NOT LIKE '%_c.mov' \
-						AND filename NOT LIKE '%_f.{1}' \
+						AND filename NOT LIKE '%/_c.mov' ESCAPE '/' \
+						AND filename NOT LIKE '%/_f.{1}' ESCAPE '/' \
 						AND rating > -1 \
-						AND is_interpretable = 1 \
 						AND (event_id <> -1 OR (event_id = -1 and exposure_time = 0))".format (conv_flag, conv_extension, conv_bitrate_kbs,)
 						)
 				for entry in dbMOVcursor:
