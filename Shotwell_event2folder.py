@@ -414,7 +414,9 @@ if __name__ == '__main__':
 					logging.critical ("conv_flag is using Predefined values")
 		#  --conv_extension
 			if conv_extension == '':
-				conv_extension = '%'
+				conv_extension_q = '%'
+			else:
+				conv_extension_q = conv_extension
 
 
 	# exit if errors are econuntered
@@ -447,9 +449,9 @@ if __name__ == '__main__':
 	}
 
 	# Inserting Escape chars for SQL querying
-	conv_flag = conv_flag.replace ('_','/_')
-	conv_flag = conv_flag.replace ('%','/%')
-	conv_flag = conv_flag.replace ('/','//')
+	conv_flag_q = conv_flag.replace ('/','//')
+	conv_flag_q = conv_flag_q.replace ('%','/%')
+	conv_flag_q = conv_flag_q.replace ('_','/_')
 
 	for a in parametersdyct:
 		logging.info ('{}{} = {}'.format(" "*(30-len(a)), a, parametersdyct[a]))
@@ -764,7 +766,7 @@ if __name__ == '__main__':
 						AND filename NOT LIKE '%/_c.mov' ESCAPE '/' \
 						AND filename NOT LIKE '%/_f.{1}' ESCAPE '/' \
 						AND rating > -1 \
-						AND (event_id <> -1 OR (event_id = -1 and exposure_time = 0))".format (conv_flag, conv_extension, conv_bitrate_kbs,)
+						AND (event_id <> -1 OR (event_id = -1 and exposure_time = 0))".format (conv_flag_q, conv_extension_q, conv_bitrate_kbs,)
 						)
 				for entry in dbMOVcursor:
 					Entry_id = entry [1]
