@@ -448,15 +448,15 @@ if __name__ == '__main__':
 	'conv_extension'		:	conv_extension,
 	}
 
-	# Inserting Escape chars for SQL querying
-	conv_flag_q = conv_flag.replace ('/','//')
-	conv_flag_q = conv_flag_q.replace ('%','/%')
-	conv_flag_q = conv_flag_q.replace ('_','/_')
 
 	for a in parametersdyct:
 		logging.info ('{}{} = {}'.format(" "*(30-len(a)), a, parametersdyct[a]))
 	logging.info('')
 
+	# Inserting Escape chars for SQL querying
+	conv_flag_q = conv_flag.replace ('/','//')
+	conv_flag_q = conv_flag_q.replace ('%','/%')
+	conv_flag_q = conv_flag_q.replace ('_','/_')
 
 	# initializing global execution vars
 	dummymsg = ''
@@ -468,8 +468,8 @@ if __name__ == '__main__':
 	ffmpeg = False
 	if conv_mov:
 		if os.system('ffmpeg --help') != 0:
-			print ('No ffmpeg tool is found. I will not process video files.')
-			print ('You can install it by typing $sudo apt-get install ffmpg.')
+			print ('No ffmpeg tool is found. I will not able to process video files.')
+			print ('You can install it by typing $sudo apt-get install ffmpeg.')
 		else:
 			print ('ffmpeg is present.')
 			ffmpeg = True
@@ -513,8 +513,8 @@ if __name__ == '__main__':
 
 			__Schema__, __appversion__ = dbconnection.execute ("SELECT schema_version, app_version FROM versiontable").fetchone()
 			if __Schema__ != 20 :
-				print ("This utility may not work properly with an Shotwell DataBase Schema other than 20")
-				print ("DB schema 20 is used on Shotwell version 0.22 or 0.24")
+				print ("This utility may not work properly with a Shotwell DataBase Schema other than 20")
+				print ("DB schema 20 is used on Shotwell version 0.22 - 0.26")
 				print ("Actual DB Schema is {}".format (__Schema__))
 				print ("Actual Shotwell Version {}".format (__appversion__))
 				exit ()
@@ -565,7 +565,6 @@ if __name__ == '__main__':
 				logging.info ('## Processing event nº {}: {} ({})'.format(eventid,eventname,eventtime))
 
 				# defining event path:
-				
 				if eventid == -1 :
 					eventpath = os.path.join(librarymainpath, eventname)
 					eventpathlast = os.path.join(librarymostrecentpath, eventname)
