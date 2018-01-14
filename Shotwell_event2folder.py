@@ -129,13 +129,13 @@ def extracttitle (photofilename):
 
 	# Replacing standalone known series
 	if title.lower() in ['img', 'jpg', 'foto', 'image', 'photo', 'scan', 'picture']:
-		logging.info ("Discarding known standalone serie:" + title.lower())
+		logging.debug ("Discarding known standalone serie:" + title.lower())
 		title = ""
 
 	# Assigning a null value if title is empty
 	if title == "":
 		title = None
-	logging.info ("The title for this entry will be: " + str(title))
+	logging.debug ("The title for this entry will be: " + str(title))
 	return title
 
 def filemove (origin, dest):
@@ -144,14 +144,14 @@ def filemove (origin, dest):
 	while itemcheck (dest) != "" :
 		infomsg = "File already exists at destination, assigning a new name."
 		dest = Nextfilenumber (dest)
-		logging.info (infomsg + " >> " + dest)
+		logging.debug (infomsg + " >> " + dest)
 
 	if dummy == False:
 		if itemcheck (os.path.dirname(dest)) == '':
 			os.makedirs (os.path.dirname(dest))
 		shutil.move (origin, dest)
 	#print ("      > file has been moved. {}".format(dummymsg))
-	logging.info ("\tfile has been moved. {}".format(dummymsg))
+	logging.debug ("\tfile has been moved. {}".format(dummymsg))
 	return dest
 
 def Thumbfilepath (ID):
@@ -184,7 +184,7 @@ def Deletethumb (ID):
 				os.remove (f)
 			infomsg = ('Thumbfile for ID ({}) has been removed'.format(ID))
 			print (infomsg)
-			logging.info (infomsg)
+			logging.debug (infomsg)
 
 def get_pid (app):
 	''' returns None if the aplication is not running, or
@@ -365,7 +365,7 @@ if __name__ == '__main__':
 	# ===============================
 	# The logging module.
 	# ===============================
-	loginlevel = 'DEBUG'  # INFO ,DEBUG
+	loginlevel = 'INFO'  # INFO ,DEBUG
 	logpath = './'
 	logging_file = os.path.join(logpath, 'Shotwell_event2folder.log')
 
@@ -484,7 +484,7 @@ if __name__ == '__main__':
 		# Check if Shotwell DB is present
 		if itemcheck (DBpath) != "file":
 			infomsg = 'Shotwell Database is not present, this script is intended to work on a Shotwell Database located at: {}'.format(DBpath)
-			print (infomsg) ; logging.info (infomsg)
+			print (infomsg) ; logging.critical (infomsg)
 			exit()
 
 		countdown = 12
@@ -498,7 +498,7 @@ if __name__ == '__main__':
 			for a in range (countdown,0,-1):
 				if getappstatus (['shotwell']):
 					print ('\nWARNING: Shotwell process is running, I will not run meanwhile Shotwell application is running.')
-					logging.info ('Shotwell process is running')
+					logging.warning ('Shotwell process is running')
 					if daemonmode:
 						execution = False
 						break
@@ -561,8 +561,8 @@ if __name__ == '__main__':
 				#  ....TODO.... Check for name inconsistences, and change not allowed characters.
 				if eventname == None : eventname = ""
 				# print ("Processing event:({})".format(eventid, eventname), end='')
-				logging.info ('')
-				logging.info ('## Processing event nº {}: {} ({})'.format(eventid,eventname,eventtime))
+				logging.debug ('')
+				logging.debug ('## Processing event nº {}: {} ({})'.format(eventid,eventname,eventtime))
 
 				# defining event path:
 				if eventid == -1 :
@@ -574,8 +574,8 @@ if __name__ == '__main__':
 
 				eventpath, eventpathlast = eventpath.strip(), eventpathlast.strip()
 
-				logging.info ("path for the event: " + eventpath)
-				logging.info ("path for the event in case of the the most recent pictures: " + eventpathlast)
+				logging.debug ("path for the event: " + eventpath)
+				logging.debug ("path for the event in case of the the most recent pictures: " + eventpathlast)
 
 				# retrieving event's photos and videos
 				dbtablecursor = dbconnection.cursor()
@@ -592,7 +592,7 @@ if __name__ == '__main__':
 
 					if itemcheck (photopath) != "file":
 						infomsg = "! Image or video in database is not present at this moment."
-						print (infomsg) ; logging.info (infomsg)
+						print (infomsg) ; logging.warning (infomsg)
 						continue
 
 					# logging the editable ID, just for info.
@@ -602,12 +602,12 @@ if __name__ == '__main__':
 						editablestring = ''
 					#progress.showprogress (idcounter,"Processing event:({}){}, file:({}){}.".format(eventid, eventname,photoid,editablestring))
 					progress.showprogress (idcounter,"Processing entry id:{:6} ".format(photoid))
-					logging.info ("# Processing({}) {}, filename: {}".format(photoid,editablestring,photofilename))
+					logging.debug ("# Processing({}) {}, filename: {}".format(photoid,editablestring,photofilename))
 
 					# Check if file is in the last Kb to move to most recent dir.
 					# It also overrides files from trash beign sent to the more recent dir.
 					if mostrecentkbs != 0 and photodate >= datelimit2move_exposure and stars >= morerecent_stars and eventid != -1: 
-						logging.info ("File will be sent to the recent pictures folder")
+						logging.debug ("File will be sent to the recent pictures folder")
 						eventpathF = eventpathlast
 
 					photonewfilename = photofilename
@@ -629,13 +629,13 @@ if __name__ == '__main__':
 								sep = " "
 
 						photonewfilename = datetime.strftime(photodate, '%Y%m%d_%H%M%S') + sep + photofilename
-						logging.info ("Filename will be renamed as: %s" % photonewfilename)
+						logging.debug ("Filename will be renamed as: %s" % photonewfilename)
 
 
 
 					# Setting the destination
 					if datetime.strftime(photodate, '%Y%m%d') == '19700101' and eventid == -1:
-						logging.info ('This file goes to the no-date folder')
+						logging.debug ('This file goes to the no-date folder')
 						eventpathF = eventpathF.replace('/Trash','/no_event',1)
 
 					# (option) import title from filenames
@@ -653,7 +653,7 @@ if __name__ == '__main__':
 						try:
 							image_metadata = GExiv2.Metadata(photopath)
 						except:
-							logging.info ('\tAn error occurred during obtaining metadata on this file')
+							logging.warning ('\tAn error occurred during obtaining metadata on this file')
 						else:
 							if image_metadata.get('Iptc.Application2.Caption') != phototitle:
 								mydictofmetadatas = {
@@ -671,7 +671,7 @@ if __name__ == '__main__':
 								logging.info ("\tImage title metadata has been updated with database title: {}{}".format(phototitle, dummymsg))
 									
 					dest = os.path.join (eventpathF, photonewfilename)
-					logging.info ("destination is set to :" + dest)
+					logging.debug ("destination is set to :" + dest)
 
 					## Deletes thumbnails due a condition. Shotwell will restore deleted thumbnails
 					'''
@@ -688,7 +688,7 @@ if __name__ == '__main__':
 					# file operations
 					if photopath == dest:
 						infomsg = "This file is already on its destination. This file remains on its place."
-						logging.info (infomsg)
+						logging.debug (infomsg)
 						continue
 					else:
 						#moving files from photopath to dest
@@ -707,7 +707,7 @@ if __name__ == '__main__':
 						editable_dest = os.path.splitext(dest)[0] + '_modified' + os.path.splitext(dest)[1]
 						if os.path.dirname(editable_photo) == os.path.dirname(editable_dest) and editable_photo == editable_dest:
 							infomsg = "This file is already on its destination. This file remains on its place."
-							logging.info (infomsg)
+							logging.debug (infomsg)
 							continue			
 						else:
 							#moving files from editable_photo to editable_dest
@@ -733,11 +733,11 @@ if __name__ == '__main__':
 
 			# Cleaning empty folders
 			if clearfolders == True:
-				logging.info ('Checking empty folders to delete them')
+				logging.info ('== Checking empty folders to delete them ==')
 				foldercollectionnext = set()
 				while len(foldercollection) > 0:
 					for i in foldercollection:
-						logging.info ('checking: %s' %i)
+						logging.debug ('checking: %s' %i)
 						if itemcheck(i) != 'folder':
 							logging.warning ('\tDoes not exists or is not a folder. Skipping')
 							continue			
@@ -807,12 +807,12 @@ if __name__ == '__main__':
 
 					if getappstatus (['shotwell']):
 						print ('\nWARNING: Shotwell process is running, I will not run meanwhile Shotwell application is running.')
-						logging.info ('Shotwell process is running. Aborting current conversion.')
+						logging.warning ('Shotwell process is running. Aborting current conversion.')
 						ffmpeg_status = None  # Exit conversion sesion.
 
 					if ffmpeg_status == 0:
 						# (ffmpeg exitted with no errors)
-						logging.info ('\tFile converted, adding or updating new entries to DB')
+						logging.debug ('\tFile converted, adding or updating new entries to DB')
 						# Getting new values for update DB registry.
 						newMD5 = 0
 						newFilesize = 0
