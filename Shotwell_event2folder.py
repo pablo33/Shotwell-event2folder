@@ -129,13 +129,13 @@ def extracttitle (photofilename):
 
 	# Replacing standalone known series
 	if title.lower() in ['img', 'jpg', 'foto', 'image', 'photo', 'scan', 'picture']:
-		logging.info ("Discarding known standalone serie:" + title.lower())
+		logging.debug ("Discarding known standalone serie:" + title.lower())
 		title = ""
 
 	# Assigning a null value if title is empty
 	if title == "":
 		title = None
-	logging.info ("The title for this entry will be: " + str(title))
+	logging.debug ("The title for this entry will be: " + str(title))
 	return title
 
 def filemove (origin, dest):
@@ -144,14 +144,14 @@ def filemove (origin, dest):
 	while itemcheck (dest) != "" :
 		infomsg = "File already exists at destination, assigning a new name."
 		dest = Nextfilenumber (dest)
-		logging.info (infomsg + " >> " + dest)
+		logging.debug (infomsg + " >> " + dest)
 
 	if dummy == False:
 		if itemcheck (os.path.dirname(dest)) == '':
 			os.makedirs (os.path.dirname(dest))
 		shutil.move (origin, dest)
 	#print ("      > file has been moved. {}".format(dummymsg))
-	logging.info ("\tfile has been moved. {}".format(dummymsg))
+	logging.debug ("\tfile has been moved. {}".format(dummymsg))
 	return dest
 
 def Thumbfilepath (ID):
@@ -184,7 +184,7 @@ def Deletethumb (ID):
 				os.remove (f)
 			infomsg = ('Thumbfile for ID ({}) has been removed'.format(ID))
 			print (infomsg)
-			logging.info (infomsg)
+			logging.debug (infomsg)
 
 def get_pid (app):
 	''' returns None if the aplication is not running, or
@@ -308,19 +308,24 @@ if __name__ == '__main__':
 		Shotevent2folder_cfg = None
 
 	abort = False
+
 	# Getting variables from user's config file and/or updating it.
 	Default_Config_options = (
-		('librarymainpath',	 		'\"{}/Pictures\"'.format(UserHomePath), '# Main path where your imeges are or you want them to be.'),
+		('librarymainpath',	 		"'{}/Pictures'".format(UserHomePath), '# Main path where your imeges are or you want them to be.'),
 		('dummy',			 		'False', '# Dummy mode. True will not perform any changes to DB or File structure.'),
 		('insertdateinfilename',	'False', '#  Filenames will be renamed with starting with a full-date expression.'),
 		('clearfolders', 			'True' , '# Delete empty folders.'),
-		('librarymostrecentpath',	'\"{}/Pictures/mostrecent\"'.format(UserHomePath), '# Path to send the most recent pictures. You can set this path synced with Dropbox pej.'),
+		('librarymostrecentpath',	"'{}/Pictures/mostrecent'".format(UserHomePath), '# Path to send the most recent pictures. You can set this path synced with Dropbox pej.'),
 		('mostrecentkbs', 			'0', '# Max amount of Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there. (2000000000 is 2Gb)'),
 		('morerecent_stars',		'-1', '# use values from -1 to 5 . Filter pictures or videos by rating to send to the more recent pictures path as destination. use -1 to move all files or ignore this option (default).'),
 		('importtitlefromfilenames','False', '# Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.'),
 		('inserttitlesinfiles',		'False', '# Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title\'s in database is empty, it will set this retrieved title in both file, and database.'),
-		('daemonmode','False','# It keeps the script running and process Shotwell DataBase if it has changes since last execution.'),
-		('sleepseconds','120','# Number of seconds to sleep, until another check in daemon mode.'),
+		('daemonmode',				'False','# It keeps the script running and process Shotwell DataBase if it has changes since last execution.'),
+		('sleepseconds',			'120','# Number of seconds to sleep, until another check in daemon mode.'),
+		('conv_mov',				'False','# Convert movies with ffmpeg to shrink their size'),
+		('conv_bitrate_kbs',		'1200','# Movies under this average bitrate will not be processed'),
+		('conv_flag',				"''",'# Only convert .mov videos wich ends on this string. leave an empty string to convert all videos.'),
+		('conv_extension',			"'MOV'", '# Filter video conversion to this kind of movies, leave an empty string to convert all file formats.'),
 		)
 
 	retrievedvalues = dict ()
@@ -351,6 +356,10 @@ if __name__ == '__main__':
 	inserttitlesinfiles = retrievedvalues ['inserttitlesinfiles']
 	daemonmode = retrievedvalues ['daemonmode']
 	sleepseconds = retrievedvalues ['sleepseconds']
+	conv_mov = retrievedvalues ['conv_mov']
+	conv_bitrate_kbs = retrievedvalues ['conv_bitrate_kbs']
+	conv_flag = retrievedvalues ['conv_flag']
+	conv_extension = retrievedvalues ['conv_extension']
 	
 
 	# ===============================
@@ -386,7 +395,31 @@ if __name__ == '__main__':
 		errmsgs.append ("\n morerecent_stars at configuration out of range. Must be from -1 to 5. (use -1 to move all files)")
 		logging.critical ("morerecent_stars out of range. actual value: {}".format (morerecent_stars))
 
-	# exitting if errors econuntered
+	#	--conv_mov
+	if type(conv_mov) != bool:
+		errmsgs.append ("\n conv_mov at configuration file must be True or False.")
+		logging.critical ("conv_mov value is not boolean.")
+	else:
+		#	--conv_bitrate_kbs
+		if conv_mov:
+			if type(conv_bitrate_kbs) != int:
+				errmsgs.append ("\n conv_bitrate_kbs at configuration file is not an integer and it should be greater than 800.")
+				logging.critical ("conv_bitrate_kbs is not a integer")
+		#  --conv_flag
+			if type (conv_flag) != str:
+					errmsgs.append ("\n conv_flag at configuration file is not an string. It marks the video file to be converted, a good choice is (conv).")
+					logging.critical ("conv_flag is not a string")
+			elif conv_flag in ('_c','_f'):
+					errmsgs.append ("\n conv_flag can't get this two values: _c or _f. A file ending in _c means a converted video, and _f means a failed conversion. Please choose other values.")
+					logging.critical ("conv_flag is using Predefined values")
+		#  --conv_extension
+			if conv_extension == '':
+				conv_extension_q = '%'
+			else:
+				conv_extension_q = conv_extension
+
+
+	# exit if errors are econuntered
 	if len (errmsgs) != 0 :
 		for a in errmsgs:
 			print (a)
@@ -409,29 +442,49 @@ if __name__ == '__main__':
 	'importtitlefromfilenames':	importtitlefromfilenames,
 	'daemonmode'			:	daemonmode,
 	'sleepseconds'			:	sleepseconds,
+	'conv_mov'				:	conv_mov,
+	'conv_bitrate_kbs'		:	conv_bitrate_kbs,
+	'conv_flag'				:	conv_flag,
+	'conv_extension'		:	conv_extension,
 	}
+
+
 	for a in parametersdyct:
 		logging.info ('{}{} = {}'.format(" "*(30-len(a)), a, parametersdyct[a]))
 	logging.info('')
 
+	# Inserting Escape chars for SQL querying
+	conv_flag_q = conv_flag.replace ('/','//')
+	conv_flag_q = conv_flag_q.replace ('%','/%')
+	conv_flag_q = conv_flag_q.replace ('_','/_')
 
 	# initializing global execution vars
 	dummymsg = ''
 	if dummy == True:
 		dummymsg = '(dummy mode)'
 		print ('Running in dummy mode.')
-	print ('Running in daemon mode.')
 
+	# Checking if ffmpeg is at the system
+	ffmpeg = False
+	if conv_mov:
+		if os.system('ffmpeg --help') != 0:
+			print ('No ffmpeg tool is found. I will not able to process video files.')
+			print ('You can install it by typing $sudo apt-get install ffmpeg.')
+		else:
+			print ('ffmpeg is present.')
+			ffmpeg = True
+
+	if daemonmode:
+		print ('Running in daemon mode.')
 
 	while True:
 		foldercollection = set ()
 		datelimit2move_exposure = datetime.now()
 
-
 		# Check if Shotwell DB is present
 		if itemcheck (DBpath) != "file":
 			infomsg = 'Shotwell Database is not present, this script is intended to work on a Shotwell Database located at: {}'.format(DBpath)
-			print (infomsg) ; logging.info (infomsg)
+			print (infomsg) ; logging.critical (infomsg)
 			exit()
 
 		countdown = 12
@@ -445,7 +498,7 @@ if __name__ == '__main__':
 			for a in range (countdown,0,-1):
 				if getappstatus (['shotwell']):
 					print ('\nWARNING: Shotwell process is running, I will not run meanwhile Shotwell application is running.')
-					logging.info ('Shotwell process is running')
+					logging.warning ('Shotwell process is running')
 					if daemonmode:
 						execution = False
 						break
@@ -460,8 +513,8 @@ if __name__ == '__main__':
 
 			__Schema__, __appversion__ = dbconnection.execute ("SELECT schema_version, app_version FROM versiontable").fetchone()
 			if __Schema__ != 20 :
-				print ("This utility may not work properly with an Shotwell DataBase Schema other than 20")
-				print ("DB schema 20 is used on Shotwell version 0.22 or 0.24")
+				print ("This utility may not work properly with a Shotwell DataBase Schema other than 20")
+				print ("DB schema 20 is used on Shotwell version 0.22 - 0.26")
 				print ("Actual DB Schema is {}".format (__Schema__))
 				print ("Actual Shotwell Version {}".format (__appversion__))
 				exit ()
@@ -508,11 +561,10 @@ if __name__ == '__main__':
 				#  ....TODO.... Check for name inconsistences, and change not allowed characters.
 				if eventname == None : eventname = ""
 				# print ("Processing event:({})".format(eventid, eventname), end='')
-				logging.info ('')
-				logging.info ('## Processing event nº {}: {} ({})'.format(eventid,eventname,eventtime))
+				logging.debug ('')
+				logging.debug ('## Processing event nº {}: {} ({})'.format(eventid,eventname,eventtime))
 
 				# defining event path:
-				
 				if eventid == -1 :
 					eventpath = os.path.join(librarymainpath, eventname)
 					eventpathlast = os.path.join(librarymostrecentpath, eventname)
@@ -522,8 +574,8 @@ if __name__ == '__main__':
 
 				eventpath, eventpathlast = eventpath.strip(), eventpathlast.strip()
 
-				logging.info ("path for the event: " + eventpath)
-				logging.info ("path for the event in case of the the most recent pictures: " + eventpathlast)
+				logging.debug ("path for the event: " + eventpath)
+				logging.debug ("path for the event in case of the the most recent pictures: " + eventpathlast)
 
 				# retrieving event's photos and videos
 				dbtablecursor = dbconnection.cursor()
@@ -540,7 +592,7 @@ if __name__ == '__main__':
 
 					if itemcheck (photopath) != "file":
 						infomsg = "! Image or video in database is not present at this moment."
-						print (infomsg) ; logging.info (infomsg)
+						print (infomsg) ; logging.warning (infomsg)
 						continue
 
 					# logging the editable ID, just for info.
@@ -550,12 +602,12 @@ if __name__ == '__main__':
 						editablestring = ''
 					#progress.showprogress (idcounter,"Processing event:({}){}, file:({}){}.".format(eventid, eventname,photoid,editablestring))
 					progress.showprogress (idcounter,"Processing entry id:{:6} ".format(photoid))
-					logging.info ("# Processing({}) {}, filename: {}".format(photoid,editablestring,photofilename))
+					logging.debug ("# Processing({}) {}, filename: {}".format(photoid,editablestring,photofilename))
 
 					# Check if file is in the last Kb to move to most recent dir.
 					# It also overrides files from trash beign sent to the more recent dir.
 					if mostrecentkbs != 0 and photodate >= datelimit2move_exposure and stars >= morerecent_stars and eventid != -1: 
-						logging.info ("File will be sent to the recent pictures folder")
+						logging.debug ("File will be sent to the recent pictures folder")
 						eventpathF = eventpathlast
 
 					photonewfilename = photofilename
@@ -577,13 +629,13 @@ if __name__ == '__main__':
 								sep = " "
 
 						photonewfilename = datetime.strftime(photodate, '%Y%m%d_%H%M%S') + sep + photofilename
-						logging.info ("Filename will be renamed as: %s" % photonewfilename)
+						logging.debug ("Filename will be renamed as: %s" % photonewfilename)
 
 
 
 					# Setting the destination
 					if datetime.strftime(photodate, '%Y%m%d') == '19700101' and eventid == -1:
-						logging.info ('This file goes to the no-date folder')
+						logging.debug ('This file goes to the no-date folder')
 						eventpathF = eventpathF.replace('/Trash','/no_event',1)
 
 					# (option) import title from filenames
@@ -601,7 +653,7 @@ if __name__ == '__main__':
 						try:
 							image_metadata = GExiv2.Metadata(photopath)
 						except:
-							logging.info ('\tAn error occurred during obtaining metadata on this file')
+							logging.warning ('\tAn error occurred during obtaining metadata on this file')
 						else:
 							if image_metadata.get('Iptc.Application2.Caption') != phototitle:
 								mydictofmetadatas = {
@@ -619,7 +671,7 @@ if __name__ == '__main__':
 								logging.info ("\tImage title metadata has been updated with database title: {}{}".format(phototitle, dummymsg))
 									
 					dest = os.path.join (eventpathF, photonewfilename)
-					logging.info ("destination is set to :" + dest)
+					logging.debug ("destination is set to :" + dest)
 
 					## Deletes thumbnails due a condition. Shotwell will restore deleted thumbnails
 					'''
@@ -636,7 +688,7 @@ if __name__ == '__main__':
 					# file operations
 					if photopath == dest:
 						infomsg = "This file is already on its destination. This file remains on its place."
-						logging.info (infomsg)
+						logging.debug (infomsg)
 						continue
 					else:
 						#moving files from photopath to dest
@@ -655,7 +707,7 @@ if __name__ == '__main__':
 						editable_dest = os.path.splitext(dest)[0] + '_modified' + os.path.splitext(dest)[1]
 						if os.path.dirname(editable_photo) == os.path.dirname(editable_dest) and editable_photo == editable_dest:
 							infomsg = "This file is already on its destination. This file remains on its place."
-							logging.info (infomsg)
+							logging.debug (infomsg)
 							continue			
 						else:
 							#moving files from editable_photo to editable_dest
@@ -678,16 +730,14 @@ if __name__ == '__main__':
 			dbeventcursor.close()
 			dbconnection.commit()
 			logging.debug ("Changes were commited")
-			dbconnection.close ()
-			logging.debug ("DB connection was closed")
 
 			# Cleaning empty folders
 			if clearfolders == True:
-				logging.info ('Checking empty folders to delete them')
+				logging.info ('== Checking empty folders to delete them ==')
 				foldercollectionnext = set()
 				while len(foldercollection) > 0:
 					for i in foldercollection:
-						logging.info ('checking: %s' %i)
+						logging.debug ('checking: %s' %i)
 						if itemcheck(i) != 'folder':
 							logging.warning ('\tDoes not exists or is not a folder. Skipping')
 							continue			
@@ -702,6 +752,140 @@ if __name__ == '__main__':
 							logging.debug ("\tadded next level to re-scan")
 					foldercollection = foldercollectionnext
 					foldercollectionnext = set()
+
+			# Checking and Converting MOV files
+			if conv_mov and ffmpeg:
+				logging.debug ('Querying DB for video conversions.')
+				newImportID = int(now.timestamp())
+				dbMOVcursor = dbconnection.cursor()
+				dbMOVcursor.execute (
+						"SELECT ROUND ((filesize/clip_duration)/(width*height/1000)) AS bitrate,* FROM videotable WHERE \
+						filename LIKE '%{0}.{1}' ESCAPE '/' \
+						AND bitrate > {2} \
+						AND filename NOT LIKE '%/_c.mov' ESCAPE '/' \
+						AND filename NOT LIKE '%/_f.{1}' ESCAPE '/' \
+						AND rating > -1 \
+						AND (event_id <> -1 OR (event_id = -1 and exposure_time = 0))".format (conv_flag_q, conv_extension_q, conv_bitrate_kbs,)
+						)
+				for entry in dbMOVcursor:
+					Entry_id = entry [1]
+					sourcefile = entry[2]
+					Entry_width = entry [3]
+					Entry_height = entry [4]
+					Entry_clip_duration = entry [5]
+					Entry_filesize = entry [7]
+					Entry_timestamp = entry [8]
+					Entry_exposure_time = entry [9]
+					Entry_event_id = entry [11]
+					Entry_rating = entry [14]
+					Entry_title = entry [15]
+					Entry_comment = entry [19]
+
+					if itemcheck (sourcefile) != 'file':
+						logging.warning ('\tThis file cannot be accessed, or does not exist at this very moment.')
+						continue
+										
+					Entry_tag_id = 'video-%016x,'%Entry_id
+					metadataparam = ''
+					if Entry_exposure_time != 0:
+						videoCreationTime = datetime.fromtimestamp (Entry_exposure_time)
+						videoStringTime = datetime.isoformat(videoCreationTime, timespec='microseconds') + 'Z'  # Example:   2018-01-03T18:25:34.000000Z
+						metadataparam += '-metadata creation_time="{}"'.format(videoStringTime)
+
+					logging.info ('Processing file with ffmpeg: {}'.format(sourcefile))
+					newFilename = os.path.splitext(sourcefile)[0]+'_c.mov'
+					if itemcheck (newFilename) == 'file':
+						if dummy == False:
+							os.remove(newFilename)
+						logging.warning ('\tIt seems that an old converted file was there, it has been deleted.{}'.format(dummymsg))
+					
+					if dummy == False:
+						ffmpeg_status = os.system ('ffmpeg -i "{}" {} "{}"'.format(sourcefile, metadataparam, newFilename))
+					else:
+						ffmpeg_status = 0
+					logging.debug ('\tffmpeg exitted with code: {}{}'.format(ffmpeg_status, dummymsg))
+
+					if getappstatus (['shotwell']):
+						print ('\nWARNING: Shotwell process is running, I will not run meanwhile Shotwell application is running.')
+						logging.warning ('Shotwell process is running. Aborting current conversion.')
+						ffmpeg_status = None  # Exit conversion sesion.
+
+					if ffmpeg_status == 0:
+						# (ffmpeg exitted with no errors)
+						logging.debug ('\tFile converted, adding or updating new entries to DB')
+						# Getting new values for update DB registry.
+						newMD5 = 0
+						newFilesize = 0
+						if dummy == False:
+							newMD5 = md5hash (newFilename)
+							newFilesize = os.path.getsize (newFilename)
+						newEntry = (None,
+									newFilename,
+									Entry_width,
+									Entry_height,
+									Entry_clip_duration,
+									1,
+									newFilesize,
+									Entry_timestamp,
+									Entry_exposure_time,
+									newImportID,
+									Entry_event_id,
+									newMD5,
+									int(now.timestamp()),
+									Entry_rating,
+									Entry_title,
+									None,
+									None,
+									0,
+									Entry_comment
+									)
+						# Fetching videoentry for an already converted video.
+						videoConvlineID = dbconnection.execute ('SELECT id FROM videotable WHERE filename=? ', (newFilename,)).fetchone()
+						if videoConvlineID is None:
+							logging.debug ('\tInserting new line at VideoTable.{}'.format(dummymsg))
+							if dummy == False:
+								dbconnection.execute ('INSERT INTO videotable VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ', newEntry )
+								# Adding new videofiles to tag table (cloning values)
+								dbconnection.commit ()
+								newEntry_id = dbconnection.execute ('SELECT max(id) FROM videotable').fetchone()[0]
+								newVideoTag_id = 'video-%016x'%newEntry_id + ','
+								TagCursor = dbconnection.cursor ()
+								TagCursor.execute ("SELECT id, photo_id_list FROM tagtable WHERE photo_id_list LIKE '%{}%'".format(Entry_tag_id,))
+								for TagEntry in TagCursor:
+									lineID , tagtext = TagEntry[0], TagEntry[1]
+									newTagText = tagtext + newVideoTag_id
+									dbconnection.execute ('UPDATE tagtable SET photo_id_list=? WHERE id=?',(newTagText,lineID))
+
+						else:
+							logging.debug ('\tUpdating an existent registry for converted video.{}'.format(dummymsg))
+							# This will not update or clone the tag registry, it will preserve existent converted video tag attributes and rating.
+							if dummy == False:
+								dbconnection.execute ('UPDATE videotable SET filesize=?, import_id=?, md5=?, time_created=? WHERE id = ?', (newFilesize, newImportID, newMD5, int(now.timestamp()), videoConvlineID[0]))
+						
+						# Set original video as rejected. (rating = -1)
+						if dummy == False:
+							dbconnection.execute ('UPDATE videotable SET rating=-1 WHERE id = ?', (Entry_id,))
+						
+					else:
+						# ffmpeg encounterered errors
+						if dummy == False:
+							if itemcheck (newFilename) == 'file':
+								os.remove(newFilename)
+							if ffmpeg_status is not None:
+								failedName = os.path.splitext(sourcefile)[0]+'_f.{}'.format (conv_extension)
+								os.rename (sourcefile, failedName)
+								dbconnection.execute('UPDATE videotable SET filename=? WHERE id=?', (failedName,Entry_id))
+							else:
+								break
+
+					if dummy == False:
+						dbconnection.commit()
+					
+				dbMOVcursor.close()
+			# Closing db Connection
+			dbconnection.close ()
+			logging.debug ("DB connection was closed")
+
 
 		if daemonmode:
 			if execution:
