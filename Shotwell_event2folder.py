@@ -80,6 +80,15 @@ def Nextfilenumber (dest):
 		newfilename = os.path.join( os.path.dirname(dest), filename [0:-cut] + "(" + str(counter) + ")" + extension)
 	return newfilename
 
+def NoTAlloChReplace (myfilename):
+	''' This function gets a string and replace a set of characters by a underscore.
+	It is intended to clean filenames and add compatibility with Windows and OSx file systems
+		'''
+	chars = '/\:*?"<>|'
+	for i in chars:
+		myfilename = myfilename.replace(i, '_')
+	return myfilename
+
 # Functions
 def extracttitle (photofilename):
 	title = photofilename
@@ -558,8 +567,11 @@ if __name__ == '__main__':
 				eventavgtime = suma/count
 				eventtime = datetime.fromtimestamp(eventavgtime)
 
-				#  ....TODO.... Check for name inconsistences, and change not allowed characters.
-				if eventname == None : eventname = ""
+				if eventname == None :
+					eventname = ""
+				else:
+					eventname = NoTAlloChReplace (eventname)  # Replace not allowed character for some filesystems
+
 				# print ("Processing event:({})".format(eventid, eventname), end='')
 				logging.debug ('')
 				logging.debug ('## Processing event nº {}: {} ({})'.format(eventid,eventname,eventtime))
@@ -669,7 +681,8 @@ if __name__ == '__main__':
 									image_metadata.save_file()
 								#print ("    Image title metadata has been updated with database title: {}{}".format(phototitle, dummymsg))
 								logging.info ("\tImage title metadata has been updated with database title: {}{}".format(phototitle, dummymsg))
-									
+					
+					photonewfilename = NoTAlloChReplace (photonewfilename)  # Replace not allowed Characters on filename for some filesystems
 					dest = os.path.join (eventpathF, photonewfilename)
 					logging.debug ("destination is set to :" + dest)
 

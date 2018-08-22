@@ -115,9 +115,26 @@ class Thumbfilepath (unittest.TestCase):
 			self.assertRaises (TM.OutOfRangeError, TM.Thumbfilepath, values)
 
 
+class NoTAlloChReplace_test (unittest.TestCase):
+	""" Given a string, replace by an undescore this set of characters
+	 / \ : * ? " < > | 
+	Empty strings returns empty strings
+	"""
+	known_values = (
+		('myfile:name','myfile_name'),
+		('myfile:name.jpg','myfile_name.jpg'),
+		('',''),
+		('*myfile*name>','_myfile_name_'),
+		('myfilenam|e','myfilenam_e'),
+		('<myfilename','_myfilename'),
+		('myfilename?','myfilename_'),
+		('myfile/name\\','myfile_name_'),
+		)
 
-
-
+	def test_NoTAlloChReplace (self):
+		for inputstring, outputstring in self.known_values:
+			result = TM.NoTAlloChReplace (inputstring)
+			self.assertEqual (outputstring, result)
 
 if __name__ == '__main__':
 	unittest.main()
