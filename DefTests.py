@@ -93,10 +93,10 @@ class Thumbfilepath (unittest.TestCase):
 	thumbsfolder = os.getenv('HOME')+'/.cache/shotwell/thumbs/'
 
 	known_values = (
-		(1, (thumbsfolder+'thumbs128/thumb0000000000000001.jpg',thumbsfolder+'thumbs360/thumb0000000000000001.jpg')),
-		(2, (thumbsfolder+'thumbs128/thumb0000000000000002.jpg',thumbsfolder+'thumbs360/thumb0000000000000002.jpg')),
-		(100, (thumbsfolder+'thumbs128/thumb0000000000000064.jpg',thumbsfolder+'thumbs360/thumb0000000000000064.jpg')),
-		(1555, (thumbsfolder+'thumbs128/thumb0000000000000613.jpg',thumbsfolder+'thumbs360/thumb0000000000000613.jpg')),
+		(1, ('thumb0000000000000001',thumbsfolder+'thumbs128/thumb0000000000000001.jpg',thumbsfolder+'thumbs360/thumb0000000000000001.jpg')),
+		(2, ('thumb0000000000000002',thumbsfolder+'thumbs128/thumb0000000000000002.jpg',thumbsfolder+'thumbs360/thumb0000000000000002.jpg')),
+		(100, ('thumb0000000000000064',thumbsfolder+'thumbs128/thumb0000000000000064.jpg',thumbsfolder+'thumbs360/thumb0000000000000064.jpg')),
+		(1555, ('thumb0000000000000613',thumbsfolder+'thumbs128/thumb0000000000000613.jpg',thumbsfolder+'thumbs360/thumb0000000000000613.jpg')),
 		)
 
 	def test_known_input (self):
@@ -135,6 +135,172 @@ class NoTAlloChReplace_test (unittest.TestCase):
 		for inputstring, outputstring in self.known_values:
 			result = TM.NoTAlloChReplace (inputstring)
 			self.assertEqual (outputstring, result)
+
+
+class enclosedyearfinder (unittest.TestCase):
+	""" searchs for a year in an slash enclosed string,
+	it must return the year string if any or None if it doesn't
+	"""
+	known_values = (
+		("1992", "1992"),
+		("any string",None),
+		("19_90", None),
+		("2000", "2000"),
+		("/",None ),
+		("",None )
+		)
+	def test_known_values (self):
+		for string1, match in self.known_values:
+			result = TM.enclosedyearfinder (string1)
+			self.assertEqual (match, result)
+
+
+class enclosedmonthfinder (unittest.TestCase):
+	""" Give a string, it returns a string if it is a month number with 2 digits,
+		otherwise it returns None, it also returns a digit mont if it is a text month
+		"""
+	known_values = (
+		("01", "01"),
+		("2" , None),
+		("10" ,"10"),
+		("", None),
+		("jkjkj",None),
+		("enero", "01"),
+		("Febrero", "02"),
+		("MaR", "03"),
+		("dic", "12"),
+		("March", "03"),
+		("Jun", "06"),
+		)
+	def test_known_values (self):
+		for string1, match in self.known_values:
+			result = TM.enclosedmonthfinder (string1)
+			self.assertEqual (match, result)
+
+
+class encloseddayfinder (unittest.TestCase):
+	""" Give a string, it returns a string if it is a month number with 2 digits,
+		otherwise it returns None, it also returns a digit mont if it is a text month
+		"""
+	known_values = (
+		("01", "01"),
+		("2" , None),
+		("10" ,"10"),
+		("", None),
+		("jkjkj",None),
+		)
+	def test_known_values (self):
+		for string1, match in self.known_values:
+			result = TM.encloseddayfinder (string1)
+			self.assertEqual (match, result)
+
+
+class yearmonthfinder (unittest.TestCase):
+	""" Given a string, returns a combo of numeric  year-month if it is found
+		return None if not any. Possible separated chars  -_/ and one space
+		"""
+	known_values = (
+		("2010-08",("2010","08")),
+		("2010_09",("2010","09")),
+		("2010 10",("2010","10")),
+		("2015/01",("2015","01")),
+		("2015:01",("2015","01")),
+		("2015.01",("2015","01")),
+		("2010X10",(None,None)),
+		("2010",(None,None)),
+		("2010-8",("2010","08")),
+		)
+	def test_known_values (self):
+		for string1, match in self.known_values:
+			result = TM.yearmonthfinder (string1)
+			self.assertEqual (match, result)
+
+
+class yearmonthdayfinder (unittest.TestCase):
+	""" Given a string, returns a combo of numeric  year-month-day if it is found,
+		otherwise returns None. Possible separated chars  -_/ and one space
+		"""
+	known_values = (
+		("2010-8-01",("2010","08","01")),
+		("2007-4-2",("2007","04","02")),
+		("2003-7-20",("2003","07","20")),
+		("2010-08-01",("2010","08","01")),
+		("2010_09-10",("2010","09","10")),
+		("2010 10_25",("2010","10","25")),
+		("2015/01/31",("2015","01","31")),
+		("2015:01.31",("2015","01","31")),
+		("2015.01:31",("2015","01","31")),
+		("2010X10X03",(None,None,None)),
+		("1993-06 some text",(None,None,None)),
+		("2010",(None,None,None)),
+		("IMG-20170610-WA0014",("2017","06","10")),
+		)
+	def test_known_values (self):
+		for string1, match in self.known_values:
+			result = TM.yearmonthdayfinder (string1)
+			self.assertEqual (match, result)
+
+
+class fulldatefinder (unittest.TestCase):
+	known_values = (
+		("2010-08-01-120500",("2010","08","01","12","05","00",True)),
+		("not at the begining 2010_09-10-00-59-01",("2010","09","10","00","59","01",False)),
+		("2010 10_25-15-03:03",("2010","10","25","15","03","03",True)),
+		("2015 01 31-080910",("2015","01","31","08","09","10", True)),
+		("some text 2015.01.31 18:23:00 more text",("2015","01","31","18","23","00", False)),
+		("20150131_050358",("2015","01","31","05","03","58", True)),
+		("2010X10X03",(None,None,None,None,None,None,None)),
+		("2010/10/1111(a)11",(None,None,None,None,None,None,None)),
+		("2010-8-2-12:03:03",('2010', '08', '02', '12', '03', '03', True)),
+		("2010-08-2-12:03:03",('2010', '08', '02', '12', '03', '03', True)),
+		("2010-8-02-12:03:03",('2010', '08', '02', '12', '03', '03', True)),
+		)
+	def test_known_values (self):
+		for string1, match in self.known_values:
+			result = TM.fulldatefinder (string1)
+			self.assertEqual (match, result)
+
+
+class serieserial (unittest.TestCase):
+	known_values = (
+		("WA1234", ('WA','1234')),
+		("WA-1234", ('WA-','1234')),
+		("WA_3456", ('WA_','3456')),
+		("WA 1111", ('WA ','1111')),
+		("IMG-0001", ('IMG-','0001')),
+		("IMG 9999", ('IMG ','9999')),
+		("IMG_1234--dfdf", ('IMG_','1234')),
+		("beforePICT-0001ending", ('PICT-','0001')),
+		("MVI5005", ('MVI','5005')),
+		("img_1771", ('img_','1771')),
+		("IMG-20170610-WA0014",('WA', '0014')),
+		)
+	def test_known_values (self):
+		for string1, match in self.known_values:
+			result = TM.serieserial (string1)
+			self.assertEqual (match, result)
+
+class findeventname (unittest.TestCase):
+	""" Given a text, it returns a possible event name:
+		returns empty string if no event is found.
+		Event-names are retrieved from directories, so an event name input-
+		string, should end in slash."""
+	known_values = (
+		('2016-01-01 Event name 01', ''),
+		('2016-01-01 Event name 01/', 'Event name 01'),
+		('2016-01-01Event name 01/and some more info.jpg', 'Event name 01'),
+		('bla bla bla 2016-01-01Event name 01/and some more info.jpg', 'Event name 01'),
+		('bla bla bla/2016-01-01 Event name 01/2010-12-01 picture.jpg', 'Event name 01'),
+		('bla bla bla/2016-01 Event name _/2010-12-01 real event name/ picture.jpg', 'real event name'),
+		('bla bla bla/2016-01 Event name _/20101201 real event name/ picture.jpg', 'real event name'),
+		('bla bla bla/2016-01 Event name _/2010-12 01 real event name/ picture.jpg', 'real event name'),
+		('bla bla bla/2016-01 Event name _/2010-12 01real event name/ picture.jpg', 'real event name'),
+		)
+	def test_known_values (self):
+		for string1, match in self.known_values:
+			result = TM.findeventname (string1)
+			self.assertEqual (match, result)
+
 
 if __name__ == '__main__':
 	unittest.main()

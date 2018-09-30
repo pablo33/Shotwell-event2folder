@@ -34,6 +34,20 @@ Th128path = os.path.join(UserHomePath,".cache/shotwell/thumbs/thumbs128")  # Pat
 Th360path = os.path.join(UserHomePath,".cache/shotwell/thumbs/thumbs360")  # Path where thumbnails are stored.
 LastExec = None
 
+monthsdict = {
+"01" : ("enero", "ene", "juanuary", "jan"),
+"02" : ("febrero", "feb", "february"),
+"03" : ("marzo", "mar", "march"),
+"04" : ("abril", "abr", "april", "apr"),
+"05" : ("mayo", "may","may"),
+"06" : ("junio", "jun", "june"),
+"07" : ("julio", "jul", "july"),
+"08" : ("agosto", "ago", "agost"),
+"09" : ("septiembre", "sep", "set","september"),
+"10" : ("octubre", "oct", "october"),
+"11" : ("noviembre", "nov", "november"),
+"12" : ("diciembre", "dic", "december", "dec"),
+}  # Months word dict.
 
 # ------ utils --------
 def itemcheck(pointer):
@@ -163,7 +177,7 @@ def filemove (origin, dest):
 	logging.debug ("\tfile has been moved. {}".format(dummymsg))
 	return dest
 
-def Thumbfilepath (ID):
+def Thumbfilepath (ID,Tablename='PhotoTable'):
 	""" This function returns the full-filepath of the thumbnails given an id
 		Thumbs are composed by the ID of the file filled with Zeroes at a length of 16.
 		ID are expressed in Hex. This is the mask:
@@ -174,20 +188,25 @@ def Thumbfilepath (ID):
 
 		Paths to thumbnails folders are global vars. (Th128path, Th360path)
 		"""
+	lead = 'thumb'
+	if Tablename == 'VideoTable':
+		lead = 'video-'
+
 	if type(ID) is not int:
 		raise NotIntegerError(ID)
 	if ID < 1 :
 		raise OutOfRangeError(ID)
 
-	thumb = 'thumb%016x'%ID + ".jpg"
-	Path128 = os.path.join(Th128path,thumb)
-	Path360 = os.path.join(Th360path,thumb)
-	return (Path128,Path360)
+	source_id = lead + '%016x'%ID 
+
+	Path128 = os.path.join(Th128path,source_id + ".jpg")
+	Path360 = os.path.join(Th360path,source_id + ".jpg")
+	return (source_id,Path128,Path360)
 
 def Deletethumb (ID):
 	""" This function deletes thumbnails given an ID
 		"""
-	for f in Thumbfilepath(ID):
+	for f in Thumbfilepath(ID)[2:3]:
 		if itemcheck(f) == 'file':
 			if dummy == False:
 				os.remove (f)
@@ -292,6 +311,297 @@ def md5hash (filepath):
 		hasher.update(buf)
 	return (hasher.hexdigest())
 
+def enclosedyearfinder (string):
+	""" searchs for a year string,
+	it must return the year string if any or None if it doesn't
+		"""
+	if string.isnumeric():
+		return string
+	return None
+
+def enclosedmonthfinder (string):
+	""" Give a string, returns a string if it is a month number,
+		otherwise it returns None,
+		"""
+	if len (string) == 2 and string.isnumeric ():
+		if int(string) in range(1,13):
+			logging.debug( 'found possible month in'+ string )
+			return string
+	for element in monthsdict:
+		if string.lower() in monthsdict[element]:
+			return element
+	return None
+
+def encloseddayfinder (string):
+	""" Give a string, returns a string if it is a month number,
+		otherwise it returns None,
+		"""
+	if len (string) == 2 and string.isnumeric ():
+		if int(string) in range(1,32):
+			logging.debug( 'found possible day in'+ string )
+			return string
+	return None
+
+def yearmonthfinder (string):
+	""" Given a string, returns a combo of numeric  year-month if it is found,
+		otherwise returns None .
+		"""
+	expr = ".*(?P<year>[12]\d{3})[-_ /:.]?(?P<month>[01]?\d).*"
+	mo = re.search(expr, string)
+	try:
+		mo.group()
+	except:
+		pass
+	else:
+		num_month = int(mo.group('month'))
+		if num_month in range (1,13) :
+			fnyear = mo.group ('year')
+			fnmonth = '{0:02}'.format(num_month)
+			return fnyear, fnmonth
+	return None, None
+
+def yearmonthdayfinder (string):
+	""" Given a string, returns a combo of numeric  year-month-day if it is found,
+		otherwise returns None.
+		"""
+
+	expr = "(?P<year>[12]\d{3})[-_ /:.]?(?P<month>[01]?\d)[-_ /:.]?(?P<day>[0-3]?\d)"
+	mo = re.search(expr, string)
+	try:
+		mo.group()
+	except:
+		pass
+	else:
+		fnyear, num_month, num_day = mo.group ('year'), int(mo.group('month')), int(mo.group('day'))
+		if 0 < num_month < 13 and 0 < num_day < 32:
+			fnmonth = '{0:02}'.format(num_month)
+			fnday = '{0:02}'.format(num_day)
+			return fnyear, fnmonth, fnday
+	return None, None, None
+
+def fulldatefinder (string):
+	""" Given a string, returns a combo of numeric YYYY-MM-DD-hh-mm-ss True if a full-date-identifier
+		if found, otherwise returns None"""
+	start = False
+	sep = '[-_ :.]'
+	expr = '(?P<year>[12]\d{3})%(sep)s?(?P<month>[01]?\d)%(sep)s?(?P<day>[0-3]?\d)%(sep)s?(?P<hour>[012]\d)%(sep)s?(?P<min>[0-5]\d)%(sep)s?(?P<sec>[0-5]\d)' %{'sep':'[-_ .:]'}
+	mo = re.search (expr, string)
+	try:
+		mo.group()
+	except:
+		logging.debug ("expression %s Not found in %s" %(expr, string))
+		pass
+	else:
+		num_month, num_day = int(mo.group ('month')), int(mo.group ('day'))
+		year  = mo.group ('year')
+		month = '{0:02}'.format(num_month)
+		day   = '{0:02}'.format(num_day)
+		hour  = mo.group ('hour')
+		minute   = mo.group ('min')
+		sec   = mo.group ('sec')
+		if mo.start() == 0 :
+			start = True
+		return year, month, day, hour, minute, sec, start
+	return None, None, None, None, None, None, None
+
+def serieserial (string):
+	''' given a filename string, it returns serie and serial number (tuple)
+		otherwise it returns None'''
+
+	sep = '[-_ ]'
+	seriallist = ['WA','IMG','PICT','MVI','img']
+	#seriallist = seriallist + seriallist.lower() for 
+	for key in seriallist :
+		expr = '(?P<se>%s%s?)(?P<sn>[0-9]{4})'%(key,sep)
+
+		mo = re.search (expr, string)
+		try:
+			mo.group()
+		except:
+			logging.debug ("expression {} Not found in {}".format(expr, string))
+			continue
+		else:
+			logging.debug ("expression {} found in {}".format(expr, string))
+			imserie  = mo.group ('se')
+			imserial = mo.group ('sn')
+			logging.debug ( 'Item serie and serial number ({}): {} {}'.format(string,imserie,imserial))
+			return imserie, imserial
+	return None, None
+
+def findeventname(Abranch):
+	#  /YYYY-MM XeventnameX/
+	exprlst = [
+		"/[12]\d{3}[-_ ]?[01]\d ?(?P<XeventnameX>.*)/",
+		"[12]\d{3}[-_ ]?[01]\d[-_ ]?[0-3]\d ?(?P<XeventnameX>.*)/",
+		]
+
+	#  /YYYY-MM-DD XeventnameX/
+	eventname = ''
+	for expr in exprlst: 
+		mo = re.search(expr, Abranch)
+		try:
+			mo.group()
+		except:
+			pass
+		else:
+			eventname = mo.group('XeventnameX')
+	return eventname
+
+def mediainfo (abspath, assignstat):
+
+	#1) Retrieve basic info from the file
+	logging.debug ('## item: {}'.format(abspath))
+	filename, fileext = os.path.splitext(os.path.basename (abspath))
+	Statdate = datetime.utcfromtimestamp(os.path.getmtime (abspath))
+	filebytes = os.path.getsize(abspath)  # logging.debug ('fileTepoch (from Stat): '.ljust( logjustif ) + str(fileTepoch))
+	fnDateTimeOriginal = None  # From start we assume a no date found on the file path
+	decideflag = None
+	TimeOriginal = None
+
+	#2) Fetch date identificators form imagepath, serie and serial number if any. 
+	mintepoch = '1800'  # In order to discard low year values, this is the lowest year. 
+
+	# Try to find some date structure in folder paths. (abspath)
+	''' Fetch dates from folder structure, this prevents losing information if exif metadata 
+	doesn't exist. Metada can be lost if you modify files with software. It is also usefull 
+	if you move video files (wich doesn't have exif metadata) among cloud services.
+	Pej. you can store a folder structure in your PC client dropbox, and you'll lose your "stat" date,
+	 but you can always recover it from file name/path.
+	Structures:
+		Years:
+			one of the path-folder starts as a year number with four numbers
+				[12]\d{3}    YYYY
+		Months:
+			one of the path folders is a month numbers
+		Combos:
+			one of the path folders starts with YYYY-MM
+
+		Full date:
+			there is a full-date structure on the path.
+			2015-01-04 | 2015_01_04 | 2015:01:04 | 2015 01 04
+
+		The day, hour-minutes and seconds asigned are 01, 12:00:00 + image serial number (in seconds) for each image to preserve an order.
+		'''
+	## Cutting main tree from fullpaths.
+	pathlevels = os.path.dirname (abspath).split ('/')
+	# Removig not wanted slashes
+	if '' in pathlevels:
+		pathlevels.remove('')
+	logging.debug ('Found directories levels: '+str(pathlevels))
+	# Starting variables. From start, we assume that there is no date at all.
+	fnyear  = None
+	fnmonth = None
+	fnday   = '01'
+	fnhour  = '12'
+	fnmin   = '00'
+	fnsec   = '00'
+	for word in pathlevels:
+		# C1.1 (/year/)
+		yearfound = enclosedyearfinder (word)
+		if yearfound != None:
+			if mintepoch < yearfound < '2040':
+				fnyear = yearfound
+				continue
+
+		# C1.2 (/month/)
+		monthfound = enclosedmonthfinder (word)
+		if monthfound != None:
+			fnmonth = monthfound
+			continue
+
+		# C1.3 (/day/):
+		dayfound = encloseddayfinder (word)
+		if dayfound != None:
+			fnday = dayfound
+			continue
+
+		# C2.1 (Year-month)
+		yearfound, monthfound = yearmonthfinder (word)
+		if yearfound != None:
+			if mintepoch < yearfound < "2038":
+				fnyear = yearfound
+				fnmonth = monthfound
+				logging.debug('month and day found in C2.1 {}-{}'.format(fnyear,fnmonth))
+
+		# C3.1: (Year-month-day)
+		yearfound, monthfound, dayfound = yearmonthdayfinder (word)
+		if yearfound != None:
+			if mintepoch < yearfound < "2038":
+				fnyear = yearfound
+				fnmonth = monthfound
+				fnday = dayfound
+
+
+	# C4: YYYY-MM-DD  in filename
+	yearfound, monthfound, dayfound = yearmonthdayfinder (filename)
+	if yearfound != None:
+		if mintepoch < yearfound < "2038":
+			fnyear = yearfound
+			fnmonth = monthfound
+			fnday = dayfound
+			logging.debug('month and day found in C4 {}-{}-{}'.format(fnyear,fnmonth,fnday))
+
+	# C3.2 (Year-month in filename)
+	if fnyear == None and fnmonth == None:
+		yearfound, monthfound = yearmonthfinder (filename)
+		if yearfound != None:
+			if mintepoch < yearfound < "2038":
+				fnyear = yearfound
+				fnmonth = monthfound
+				logging.debug('month and day found in C3.2 {}-{}'.format(fnyear,fnmonth))
+
+	# C5: YYYYMMDD-HHMMSS  in filename and find a starting full-date identifier
+	Imdatestart = False  # Flag to inform a starting full-date-identifier at the start of the file.
+	foundtuple = fulldatefinder (filename)
+
+	if foundtuple[0] != None:
+		if mintepoch < foundtuple[0] < "2039":
+			fnyear  = foundtuple[0]
+			fnmonth = foundtuple[1]
+			fnday   = foundtuple[2]
+			fnhour  = foundtuple[3]
+			fnmin   = foundtuple[4]
+			fnsec   = foundtuple[5]
+			logging.debug ( 'found full date identifier in ' + filename)
+			#if mo.start() == 0 :
+			if foundtuple[6] == True:
+				logging.debug ('filename starts with a full date identifier: '+ filename )
+				Imdatestart = True  #  True means that filename starts with full-date serial in its name (item will not add any date in his filename again)
+
+
+	# setting creation date retrieved from filepath
+	if fnyear != None and fnmonth != None:
+		textdate = '{}:{}:{} {}:{}:{}'.format (fnyear, fnmonth, fnday, fnhour, fnmin, fnsec)
+		logging.debug ('This date have been retrieved from the file-path-name: ' + textdate )
+		fnDateTimeOriginal = datetime.strptime (textdate, '%Y:%m:%d %H:%M:%S')
+
+
+	# Fetch Serial number from filename
+	imserie, imserial = serieserial (filename)
+
+	# Set Creation Date extracted from filename/path
+	if fnDateTimeOriginal != None :
+		TimeOriginal = fnDateTimeOriginal
+		decideflag = 'Filepath'
+
+	elif assignstat:
+		# Set Creation Date from stat file.
+		TimeOriginal = Statdate
+		decideflag = 'Stat'
+	
+	if decideflag != None:
+		logging.debug ('\tImage Creation date has been set from {}, ({}): '.format (decideflag,str(TimeOriginal)))
+
+	if TimeOriginal == None:
+		logging.debug ( "\tCan't guess Image date of Creation" )
+	else:
+		TimeOriginalEpoch = int(datetime.timestamp(TimeOriginal))
+	
+	#return filename, fileext, filebytes, Imdatestart, fnDateTimeOriginal, Statdate, TimeOriginal, decideflag, imserie, imserial
+
+	return TimeOriginalEpoch, decideflag
+
+
 
 if __name__ == '__main__':
 
@@ -335,6 +645,8 @@ if __name__ == '__main__':
 		('conv_bitrate_kbs',		'1200','# Movies under this average bitrate will not be processed'),
 		('conv_flag',				"''",'# Only convert .mov videos wich ends on this string. leave an empty string to convert all videos.'),
 		('conv_extension',			"'MOV'", '# Filter video conversion to this kind of movies, leave an empty string to convert all file formats.'),
+		('autodate',				'False', '# Autodate no date event photos. It will retrieve dates from filenames or file creation fron Stat.'),
+		('assignstat',				'False', '# on autodate routine, assign a date from file creation (stat) in case a no valid date were found.'),
 		)
 
 	retrievedvalues = dict ()
@@ -369,12 +681,14 @@ if __name__ == '__main__':
 	conv_bitrate_kbs = retrievedvalues ['conv_bitrate_kbs']
 	conv_flag = retrievedvalues ['conv_flag']
 	conv_extension = retrievedvalues ['conv_extension']
+	autodate = retrievedvalues ['autodate']
+	assignstat = retrievedvalues ['assignstat']
 	
 
 	# ===============================
 	# The logging module.
 	# ===============================
-	loginlevel = 'INFO'  # INFO ,DEBUG
+	loginlevel = 'DEBUG'  # INFO ,DEBUG
 	logpath = './'
 	logging_file = os.path.join(logpath, 'Shotwell_event2folder.log')
 
@@ -455,6 +769,8 @@ if __name__ == '__main__':
 	'conv_bitrate_kbs'		:	conv_bitrate_kbs,
 	'conv_flag'				:	conv_flag,
 	'conv_extension'		:	conv_extension,
+	'autodate'				:	autodate,
+	'assignstat'			:	assignstat,
 	}
 
 
@@ -528,11 +844,53 @@ if __name__ == '__main__':
 				print ("Actual Shotwell Version {}".format (__appversion__))
 				exit ()
 
+			# Autodate rutine.
+			if autodate:
+				logging.debug ('Starting autodate routine')
+				deltaHours = 8  # Gap to find an existent event for the images.
+				deltatime = int(deltaHours*60*60/2)
+
+				dbnoeventcursor = dbconnection.cursor()
+				dbnoeventcursor.execute ("SELECT id,filename,timestamp,'PhotoTable' FROM PhotoTable WHERE event_id = -1 and exposure_time = 0 UNION SELECT id,filename,timestamp,'VideoTable' FROM VideoTable WHERE event_id = -1 and exposure_time = 0")
+				for entry in dbnoeventcursor:
+					logging.debug('Procesing no event_entry: {}'.format (entry))
+					Id, Filepath, Timestamp, Table = entry
+					if itemcheck (Filepath) != 'file':
+						logging.warning ('\tFile is not accesible: ({}) from {}'.format(Id,Table))
+						continue
+					TimeOriginalEpoch, decideflag = mediainfo (Filepath, assignstat)
+					if decideflag == None:
+						logging.info ("\tWe couldn't assign a date from the filename: {}".format(Filepath))
+						continue
+					else:
+						logging.debug ("\t Searchign an event to add the item...")
+						ocurrences, eventID = dbconnection.execute ("SELECT count(ocurrences) as events_count, event_id from \
+							(select count(event_id) as ocurrences, event_id FROM \
+								(select event_id, id from PhotoTable WHERE exposure_time < {0} and exposure_time > {1} \
+									union	\
+								select event_id, id from VideoTable WHERE exposure_time < {0} and exposure_time > {1})	\
+							group by event_id order by ocurrences desc)".format(TimeOriginalEpoch + deltatime,TimeOriginalEpoch - deltatime)).fetchone()
+						logging.debug ('\t{} occurences found'.format(ocurrences))
+						if ocurrences != 1:
+							logging.debug ('\tCreating a new event for the item.')
+							#Selecting next event ID
+							eventID = dbconnection.execute("SELECT max(id)+1 FROM EventTable").fetchone()[0]
+							Time_created = int(datetime.timestamp(datetime.now()))
+							Primary_source_id = Thumbfilepath (Id,Table)[0]
+							#Inserting new event
+							dbconnection.execute ("INSERT INTO EventTable \
+										(name,primary_photo_id,time_created,primary_source_id,comment) \
+									VALUES (null,null,{},'{}',null)".format( Time_created , Primary_source_id ))
+						# assigning event to the image/video
+						logging.debug ('\tAssigning image to the event')
+						dbconnection.execute ("UPDATE {} SET exposure_time = {}, event_id = {} where id = {}".format(Table,TimeOriginalEpoch,eventID,Id))
+						dbconnection.commit()
+						logging.debug('\tChanges commited.')
+				dbnoeventcursor.close()
 			totalreg = dbconnection.execute ('SELECT sum (ids) FROM (SELECT count (id) AS ids FROM phototable UNION SELECT count(id) AS ids FROM videotable )').fetchone()[0]
 			progress = Progresspercent (totalreg)
 			idcounter = 0
 
-			# Set the more recent Kbs of data and stablishing the limit to move if any.
 			if mostrecentkbs > 0 :
 				dballitemscursor = dbconnection.cursor ()
 				dballitemscursor.execute ("SELECT filesize, exposure_time, rating, 'PhotoTable' as tabla FROM PhotoTable WHERE rating >= %(rating)s UNION SELECT filesize, exposure_time, rating,'VideoTable' as tabla FROM VideoTable WHERE rating >= %(rating)s ORDER BY exposure_time DESC" %{'rating':morerecent_stars} )
@@ -755,6 +1113,9 @@ if __name__ == '__main__':
 							logging.warning ('\tDoes not exists or is not a folder. Skipping')
 							continue			
 						if len (os.listdir(i)) == 0:
+							if i == os.path.join (UserHomePath,'Desktop'):
+								logging.warning ('I will not delete your Desktop directory.')
+								continue
 							shutil.rmtree (i)
 							ftext = i
 							if len (ftext) > 50:
