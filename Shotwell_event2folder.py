@@ -645,7 +645,7 @@ if __name__ == '__main__':
 		('conv_bitrate_kbs',		'1200','# Movies under this average bitrate will not be processed'),
 		('conv_flag',				"''",'# Only convert .mov videos wich ends on this string. leave an empty string to convert all videos.'),
 		('conv_extension',			"'MOV'", '# Filter video conversion to this kind of movies, leave an empty string to convert all file formats.'),
-		('autodate',				'False', '# Autodate no date event photos. It will retrieve dates from filenames or file creation fron Stat.'),
+		('autodate',				'False', '# When True, it tries to auto-date _no date event_ photos. It will retrieve dates from filenames and add them to an existing event. A new event is created in case no event is found.'),
 		('assignstat',				'False', '# on autodate routine, assign a date from file creation (stat) in case a no valid date were found.'),
 		)
 
@@ -688,7 +688,7 @@ if __name__ == '__main__':
 	# ===============================
 	# The logging module.
 	# ===============================
-	loginlevel = 'DEBUG'  # INFO ,DEBUG
+	loginlevel = 'INFO'  # INFO ,DEBUG
 	logpath = './'
 	logging_file = os.path.join(logpath, 'Shotwell_event2folder.log')
 
@@ -740,6 +740,16 @@ if __name__ == '__main__':
 				conv_extension_q = '%'
 			else:
 				conv_extension_q = conv_extension
+
+	#	--autodate
+	if type(assignstat) != bool:
+		errmsgs.append ("\n autodate at configuration file must be True or False.")
+		logging.critical ("autodate value is not boolean.")
+
+	#	--assignstat
+	if type(assignstat) != bool:
+		errmsgs.append ("\n assignstat at configuration file must be True or False.")
+		logging.critical ("assignstat value is not boolean.")
 
 
 	# exit if errors are econuntered
@@ -846,6 +856,7 @@ if __name__ == '__main__':
 
 			# Autodate rutine.
 			if autodate:
+				neweventsids = []  # I will try to add images to new created events.
 				logging.debug ('Starting autodate routine')
 				deltaHours = 8  # Gap to find an existent event for the images.
 				deltatime = int(deltaHours*60*60/2)
@@ -871,12 +882,13 @@ if __name__ == '__main__':
 								select event_id, id from VideoTable WHERE exposure_time < {0} and exposure_time > {1})	\
 							group by event_id order by ocurrences desc)".format(TimeOriginalEpoch + deltatime,TimeOriginalEpoch - deltatime)).fetchone()
 						logging.debug ('\t{} occurences found'.format(ocurrences))
-						if ocurrences != 1:
+						if ocurrences != 1 and eventID not in neweventsids:
 							logging.debug ('\tCreating a new event for the item.')
 							#Selecting next event ID
 							eventID = dbconnection.execute("SELECT max(id)+1 FROM EventTable").fetchone()[0]
 							Time_created = int(datetime.timestamp(datetime.now()))
 							Primary_source_id = Thumbfilepath (Id,Table)[0]
+							neweventsids.append (eventID)
 							#Inserting new event
 							dbconnection.execute ("INSERT INTO EventTable \
 										(name,primary_photo_id,time_created,primary_source_id,comment) \

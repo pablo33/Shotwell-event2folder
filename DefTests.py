@@ -197,7 +197,7 @@ class encloseddayfinder (unittest.TestCase):
 
 class yearmonthfinder (unittest.TestCase):
 	""" Given a string, returns a combo of numeric  year-month if it is found
-		return None if not any. Possible separated chars  -_/ and one space
+		return None if not any. Possible separated chars  -_/ and one space or joined.
 		"""
 	known_values = (
 		("2010-08",("2010","08")),
@@ -209,6 +209,8 @@ class yearmonthfinder (unittest.TestCase):
 		("2010X10",(None,None)),
 		("2010",(None,None)),
 		("2010-8",("2010","08")),
+		("20108",("2010","08")),		
+		("201008",("2010","08")),		
 		)
 	def test_known_values (self):
 		for string1, match in self.known_values:
