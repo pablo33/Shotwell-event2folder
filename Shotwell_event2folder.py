@@ -3,13 +3,11 @@
 import sqlite3, os, sys, shutil, logging, re, time, pickle
 from hashlib import md5
 
-
 from datetime import datetime
 import gi  # used to avoid Gi warning
 gi.require_version('GExiv2', '0.10')  # used to avoid Gi warning
 from gi.repository import GExiv2  # for metadata management. Dependencies: gir1.2-gexiv2   &   python-gobject
 from subprocess import check_output  # Checks if shotwell is active or not
-
 
 
 # ------- Class Exceptions  ---------
@@ -616,6 +614,13 @@ def mediainfo (abspath, assignstat):
 
 	return TimeOriginalEpoch, decideflag
 
+def add_date_metadate (imagepath,TimeEpoch):
+	metadata = GExiv2.Metadata(imagepath)
+	metadata.set_date_time (datetime.fromtimestamp(TimeEpoch))
+	metadata.save_file()
+	logging.debug ('\t' + 'writed metadata to image file.')
+	logging.debug ('\t' + imagepath)
+	return
 
 
 if __name__ == '__main__':
@@ -881,10 +886,10 @@ if __name__ == '__main__':
 				deltatime = int(deltaHours*60*60/2)
 
 				dbnoeventcursor = dbconnection.cursor()
-				dbnoeventcursor.execute ("SELECT id,filename,timestamp,'PhotoTable' FROM PhotoTable WHERE event_id = -1 and exposure_time = 0 UNION SELECT id,filename,timestamp,'VideoTable' FROM VideoTable WHERE event_id = -1 and exposure_time = 0")
+				dbnoeventcursor.execute ("SELECT id,filename,timestamp,'PhotoTable', file_format FROM PhotoTable WHERE event_id = -1 and exposure_time = 0 UNION SELECT id,filename,timestamp,'VideoTable', null FROM VideoTable WHERE event_id = -1 and exposure_time = 0")
 				for entry in dbnoeventcursor:
 					logging.debug('Procesing no event_entry: {}'.format (entry))
-					Id, Filepath, Timestamp, Table = entry
+					Id, Filepath, Timestamp, Table, File_Format = entry
 					if itemcheck (Filepath) != 'file':
 						logging.warning ('\tFile is not accesible: ({}) from {}'.format(Id,Table))
 						continue
@@ -915,9 +920,18 @@ if __name__ == '__main__':
 						# assigning event to the image/video
 						logging.debug ('\tAssigning image to the event')
 						dbconnection.execute ("UPDATE {} SET exposure_time = {}, event_id = {} where id = {}".format(Table,TimeOriginalEpoch,eventID,Id))
-						dbconnection.commit()
-						logging.debug('\tChanges commited.')
+						if commit_metadata and File_Format == 0 :
+							if dummy == False:
+								add_date_metadate (Filepath,TimeOriginalEpoch)
+							MD5 = md5hash (Filepath)
+							dbconnection.execute ("UPDATE {} SET md5 = '{}' where id = {}".format(Table, MD5, Id))
+							logging.debug ('\tMetadata inserted into the image, updated md5 {}.{}'.format(MD5, dummymsg))
+
+						if dummy == False:
+							dbconnection.commit()
+						logging.debug('\tChanges commited.{}'.format(dummymsg))
 				dbnoeventcursor.close()
+			
 			totalreg = dbconnection.execute ('SELECT sum (ids) FROM (SELECT count (id) AS ids FROM phototable UNION SELECT count(id) AS ids FROM videotable )').fetchone()[0]
 			progress = Progresspercent (totalreg)
 			idcounter = 0
