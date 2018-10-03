@@ -10,6 +10,8 @@ gi.require_version('GExiv2', '0.10')  # used to avoid Gi warning
 from gi.repository import GExiv2  # for metadata management. Dependencies: gir1.2-gexiv2   &   python-gobject
 from subprocess import check_output  # Checks if shotwell is active or not
 
+
+
 # ------- Class Exceptions  ---------
 class OutOfRangeError(ValueError):
 	pass
@@ -102,6 +104,19 @@ def NoTAlloChReplace (myfilename):
 	for i in chars:
 		myfilename = myfilename.replace(i, '_')
 	return myfilename
+
+
+def gsettingsget (schema, key, data_type):
+	"""
+	Gets a key from dconfig using gsettings binary.
+	check_output returns a bites string. You have to decode this string to the expected key data.
+	"""
+	value = check_output(['gsettings','get', schema, key])
+
+	if data_type == 'bool':
+		value = eval(value.decode().strip().capitalize())
+		return value
+
 
 # Functions
 def extracttitle (photofilename):
@@ -683,7 +698,10 @@ if __name__ == '__main__':
 	conv_extension = retrievedvalues ['conv_extension']
 	autodate = retrievedvalues ['autodate']
 	assignstat = retrievedvalues ['assignstat']
-	
+
+	# Fetched from Shotwell's configuration
+	commit_metadata = gsettingsget('org.yorba.shotwell.preferences.files','commit-metadata','bool')
+
 
 	# ===============================
 	# The logging module.
@@ -781,9 +799,10 @@ if __name__ == '__main__':
 	'conv_extension'		:	conv_extension,
 	'autodate'				:	autodate,
 	'assignstat'			:	assignstat,
+	'commit_metadata'		:	commit_metadata,
 	}
 
-
+	
 	for a in parametersdyct:
 		logging.info ('{}{} = {}'.format(" "*(30-len(a)), a, parametersdyct[a]))
 	logging.info('')
@@ -810,7 +829,7 @@ if __name__ == '__main__':
 			ffmpeg = True
 
 	if daemonmode:
-		print ('Running in daemon mode.')
+		print ('Running in daemon mode. I will iterate every {} seconds.'.format(sleepseconds))
 
 	while True:
 		foldercollection = set ()
@@ -849,9 +868,9 @@ if __name__ == '__main__':
 			__Schema__, __appversion__ = dbconnection.execute ("SELECT schema_version, app_version FROM versiontable").fetchone()
 			if __Schema__ != 20 :
 				print ("This utility may not work properly with a Shotwell DataBase Schema other than 20")
-				print ("DB schema 20 is used on Shotwell version 0.22 - 0.26")
+				print ("DB schema 20 is used on Shotwell version 0.22 - 0.29.1")
 				print ("Actual DB Schema is {}".format (__Schema__))
-				print ("Actual Shotwell Version {}".format (__appversion__))
+				print ("Actual Shotwell Version is {}".format (__appversion__))
 				exit ()
 
 			# Autodate rutine.
