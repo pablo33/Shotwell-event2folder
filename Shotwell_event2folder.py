@@ -607,6 +607,7 @@ def mediainfo (abspath, assignstat):
 
 	if TimeOriginal == None:
 		logging.debug ( "\tCan't guess Image date of Creation" )
+		TimeOriginalEpoch = None
 	else:
 		TimeOriginalEpoch = int(datetime.timestamp(TimeOriginal))
 	
