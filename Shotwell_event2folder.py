@@ -34,6 +34,10 @@ Th128path = os.path.join(UserHomePath,".cache/shotwell/thumbs/thumbs128")  # Pat
 Th360path = os.path.join(UserHomePath,".cache/shotwell/thumbs/thumbs360")  # Path where thumbnails are stored.
 LastExec = None
 
+# -------- Global Vars ----------
+mintepoch = '1800'  # In order to discard low year values, this is the lowest year. // fetched later by user configuration.
+
+
 monthsdict = {
 "01" : ("enero", "ene", "juanuary", "jan"),
 "02" : ("febrero", "feb", "february"),
@@ -461,6 +465,8 @@ def findeventname(Abranch):
 	return eventname
 
 def mediainfo (abspath, assignstat):
+	# Global dependent variables:
+	#	mintepoch # In order to discard low year values, this is the lowest year. 
 
 	#1) Retrieve basic info from the file
 	logging.debug ('## item: {}'.format(abspath))
@@ -472,7 +478,6 @@ def mediainfo (abspath, assignstat):
 	TimeOriginal = None
 
 	#2) Fetch date identificators form imagepath, serie and serial number if any. 
-	mintepoch = '1800'  # In order to discard low year values, this is the lowest year. 
 
 	# Try to find some date structure in folder paths. (abspath)
 	''' Fetch dates from folder structure, this prevents losing information if exif metadata 
@@ -512,7 +517,7 @@ def mediainfo (abspath, assignstat):
 		# C1.1 (/year/)
 		yearfound = enclosedyearfinder (word)
 		if yearfound != None:
-			if mintepoch < yearfound < '2040':
+			if mintepoch < yearfound < '2038':
 				fnyear = yearfound
 				continue
 
@@ -568,7 +573,7 @@ def mediainfo (abspath, assignstat):
 	foundtuple = fulldatefinder (filename)
 
 	if foundtuple[0] != None:
-		if mintepoch < foundtuple[0] < "2039":
+		if mintepoch < foundtuple[0] < "2038":
 			fnyear  = foundtuple[0]
 			fnmonth = foundtuple[1]
 			fnday   = foundtuple[2]
@@ -668,6 +673,7 @@ if __name__ == '__main__':
 		('conv_extension',			"'MOV'", '# Filter video conversion to this kind of movies, leave an empty string to convert all file formats.'),
 		('autodate',				'False', '# When True, it tries to auto-date _no date event_ photos. It will retrieve dates from filenames and add them to an existing event. A new event is created in case no event is found.'),
 		('assignstat',				'False', '# on autodate routine, assign a date from file creation (stat) in case a no valid date were found.'),
+		('mintepoch',				'1998',	 '# Minimun year, in order to fetch years from filenames.')
 		)
 
 	retrievedvalues = dict ()
@@ -704,6 +710,7 @@ if __name__ == '__main__':
 	conv_extension = retrievedvalues ['conv_extension']
 	autodate = retrievedvalues ['autodate']
 	assignstat = retrievedvalues ['assignstat']
+	mintepoch = retrievedvalues ['mintepoch']
 
 	# Fetched from Shotwell's configuration
 	commit_metadata = gsettingsget('org.yorba.shotwell.preferences.files','commit-metadata','bool')
@@ -766,14 +773,19 @@ if __name__ == '__main__':
 				conv_extension_q = conv_extension
 
 	#	--autodate
-	if type(assignstat) != bool:
+	if type(autodate) != bool:
 		errmsgs.append ("\n autodate at configuration file must be True or False.")
 		logging.critical ("autodate value is not boolean.")
-
-	#	--assignstat
-	if type(assignstat) != bool:
-		errmsgs.append ("\n assignstat at configuration file must be True or False.")
-		logging.critical ("assignstat value is not boolean.")
+	else:
+		if autodate:
+			#	--assignstat
+			if type(assignstat) != bool:
+				errmsgs.append ("\n assignstat at configuration file must be True or False.")
+				logging.critical ("assignstat value is not boolean.")
+			#	--mintepoch
+			if type(mintepoch) != int:
+				errmsgs.append ("\n mintepoch at configuration file is not an integer. Default value is 1998.")
+				logging.critical ("mintepoch is not a integer")
 
 
 	# exit if errors are econuntered
@@ -806,6 +818,7 @@ if __name__ == '__main__':
 	'autodate'				:	autodate,
 	'assignstat'			:	assignstat,
 	'commit_metadata'		:	commit_metadata,
+	'mintepoch'				:	mintepoch,
 	}
 
 	
