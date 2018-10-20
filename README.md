@@ -20,7 +20,7 @@ Python3, GExiv2 from Gi.repository, ffmpeg
 This script has been tesded with Shotwell 0.18.0 to 0.28.2 (ubuntu 14.10 to 18.04LTS).
 
 **Usage:**
-Just launch the script from command line, it will create a config file, you can edit it to fit your needings and then run it again.
+Just launch the script from command line, it will create a config file, you can edit it to fit by your needings and then run it again.
 
 	python3 Shotwell_event2folder.py
 
