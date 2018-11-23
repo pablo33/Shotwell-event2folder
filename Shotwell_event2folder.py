@@ -786,7 +786,8 @@ if __name__ == '__main__':
 			if type(mintepoch) != int:
 				errmsgs.append ("\n mintepoch at configuration file is not an integer. Default value is 1998.")
 				logging.critical ("mintepoch is not a integer")
-
+			else:
+				mintepoch = str(mintepoch)
 
 	# exit if errors are econuntered
 	if len (errmsgs) != 0 :
