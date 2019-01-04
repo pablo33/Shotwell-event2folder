@@ -719,7 +719,7 @@ if __name__ == '__main__':
 	# ===============================
 	# The logging module.
 	# ===============================
-	loginlevel = 'DEBUG'  # INFO ,DEBUG
+	loginlevel = 'INFO'  # INFO ,DEBUG
 	logpath = './'
 	logging_file = os.path.join(logpath, 'Shotwell_event2folder.log')
 
@@ -972,7 +972,7 @@ if __name__ == '__main__':
 			for e in dbeventcursor:
 				# Retrieve event data
 				eventid, eventname = e	
-				times = dbconnection.execute('SELECT exposure_time FROM videotable WHERE event_id = ? and exposure_time is not null UNION select exposure_time from phototable where event_id = ? and exposure_time is not null',(eventid,eventid))
+				times = dbconnection.execute('SELECT exposure_time FROM videotable WHERE event_id = ? and exposure_time != 0 UNION select exposure_time from phototable where event_id = ? and exposure_time != 0',(eventid,eventid))
 
 				#    calculating event date by average
 				suma, count = 0, 0
@@ -980,7 +980,7 @@ if __name__ == '__main__':
 					count += 1
 					suma += l[0]
 				if count == 0:
-					logging.debug ('\tEvent {} has no photos or videos (is empty). Skipping.'.format(eventid))
+					logging.debug ('\tEvent {} has no datable photos or videos (or is empty). Skipping.'.format(eventid))
 					continue
 				eventavgtime = suma/count
 				eventtime = datetime.fromtimestamp(eventavgtime)
