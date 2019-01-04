@@ -719,7 +719,7 @@ if __name__ == '__main__':
 	# ===============================
 	# The logging module.
 	# ===============================
-	loginlevel = 'INFO'  # INFO ,DEBUG
+	loginlevel = 'DEBUG'  # INFO ,DEBUG
 	logpath = './'
 	logging_file = os.path.join(logpath, 'Shotwell_event2folder.log')
 
@@ -1043,7 +1043,7 @@ if __name__ == '__main__':
 					photonewfilename = photofilename
 					# checking a starting date in filename
 					sep = ""
-					if insertdateinfilename == True and phototimestamp != None and eventid != -1:
+					if insertdateinfilename == True and phototimestamp != 0 and eventid != -1:
 						expr = '[12]\d{3}[01]\d[0-3]\d[.-_ ]?[012]\d[0-5]\d[0-5]\d'
 						mo = re.search (expr, photofilename)
 						try:
