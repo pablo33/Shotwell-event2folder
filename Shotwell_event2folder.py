@@ -24,7 +24,6 @@ class EmptyStringError(ValueError):
 
 
 # ------- Set Environment ---------
-os.stat_float_times (False)  #  So you won't get milliseconds retrieving Stat dates; this will raise in error parsing getmtime.
 gi.require_version('GExiv2', '0.10')  # user to avoid Gi warning
 
 # ------- Set Variables ---------
