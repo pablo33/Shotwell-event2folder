@@ -892,26 +892,41 @@ if __name__ == '__main__':
 				print ("Actual Shotwell Version is {}".format (__appversion__))
 				exit ()
 
-			# Autodate rutine.
+			# Autodate routine.
 			if autodate:
+				#import pdb; pdb.set_trace()
+
 				neweventsids = []  # I will try to add images to new created events.
 				logging.debug ('Starting autodate routine')
 				deltaHours = 8  # Gap to find an existent event for the images.
 				deltatime = int(deltaHours*60*60/2)
 
 				dbnoeventcursor = dbconnection.cursor()
-				dbnoeventcursor.execute ("SELECT id,filename,timestamp,'PhotoTable', file_format FROM PhotoTable WHERE event_id = -1 and exposure_time = 0 UNION SELECT id,filename,timestamp,'VideoTable', null FROM VideoTable WHERE event_id = -1 and exposure_time = 0")
+				dbnoeventcursor.execute ("SELECT id,filename,timestamp,'PhotoTable',file_format,event_id FROM PhotoTable WHERE exposure_time = 0 and flags != 4 UNION SELECT id,filename,timestamp,'VideoTable',null,event_id FROM VideoTable WHERE exposure_time = 0  and flags != 4")
 				for entry in dbnoeventcursor:
 					logging.debug('Procesing no event_entry: {}'.format (entry))
-					Id, Filepath, Timestamp, Table, File_Format = entry
+					Id, Filepath, Timestamp, Table, File_Format, Event_id = entry
+					eventID = Event_id
 					if itemcheck (Filepath) != 'file':
 						logging.warning ('\tFile is not accesible: ({}) from {}'.format(Id,Table))
 						continue
+					#Retrieving dates from file.
 					TimeOriginalEpoch, decideflag = mediainfo (Filepath, assignstat)
 					if decideflag == None:
 						logging.info ("\tWe couldn't assign a date from the filename: {}".format(Filepath))
-						continue
-					else:
+						if Event_id != -1:
+							# Try to assign a date from the Event if it has some photos.
+							# It will assign the earlier date of the even's photos.
+							Minimundate = dbconnection.execute("SELECT MIN(times) FROM (SELECT exposure_time as times FROM PhotoTable WHERE event_id = {0} and exposure_time != 0 UNION SELECT exposure_time as times FROM VideoTable WHERE event_id = {0} and exposure_time != 0)".format(Event_id,)).fetchone()[0]
+							if Minimundate == None:
+								logging.info ("\tWe couldn't assign any date from the Photoevent: {}".format(Filepath))
+								continue
+							else:
+								TimeOriginalEpoch = Minimundate
+						# we cant't do nothing
+						else:
+							continue
+					elif Event_id == -1 :
 						logging.debug ("\t Searchign an event to add the item...")
 						ocurrences, eventID = dbconnection.execute ("SELECT count(ocurrences) as events_count, event_id from \
 							(select count(event_id) as ocurrences, event_id FROM \
@@ -931,19 +946,21 @@ if __name__ == '__main__':
 							dbconnection.execute ("INSERT INTO EventTable \
 										(name,primary_photo_id,time_created,primary_source_id,comment) \
 									VALUES (null,null,{},'{}',null)".format( Time_created , Primary_source_id ))
-						# assigning event to the image/video
-						logging.debug ('\tAssigning image to the event')
+						# assigning  image/video exposure time
+					if eventID != -1:
+						logging.debug ('\tAssigning exposure time and event to the image')
 						dbconnection.execute ("UPDATE {} SET exposure_time = {}, event_id = {} where id = {}".format(Table,TimeOriginalEpoch,eventID,Id))
-						if commit_metadata and File_Format == 0 :
-							if dummy == False:
-								add_date_metadate (Filepath,TimeOriginalEpoch)
-							MD5 = md5hash (Filepath)
-							dbconnection.execute ("UPDATE {} SET md5 = '{}' where id = {}".format(Table, MD5, Id))
-							logging.debug ('\tMetadata inserted into the image, updated md5 {}.{}'.format(MD5, dummymsg))
-
+					#Inserting metadatas in file
+					if commit_metadata and File_Format == 0 and TimeOriginalEpoch != None:
 						if dummy == False:
-							dbconnection.commit()
-						logging.debug('\tChanges commited.{}'.format(dummymsg))
+							add_date_metadate (Filepath,TimeOriginalEpoch)
+						MD5 = md5hash (Filepath)
+						dbconnection.execute ("UPDATE {} SET md5 = '{}' where id = {}".format(Table, MD5, Id))
+						logging.debug ('\tMetadata inserted into the image, updated md5 {}.{}'.format(MD5, dummymsg))
+
+					if dummy == False:
+						dbconnection.commit()
+					logging.debug('\tChanges commited.{}'.format(dummymsg))
 				dbnoeventcursor.close()
 			
 			totalreg = dbconnection.execute ('SELECT sum (ids) FROM (SELECT count (id) AS ids FROM phototable UNION SELECT count(id) AS ids FROM videotable )').fetchone()[0]
