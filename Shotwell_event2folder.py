@@ -894,8 +894,6 @@ if __name__ == '__main__':
 
 			# Autodate routine.
 			if autodate:
-				#import pdb; pdb.set_trace()
-
 				neweventsids = []  # I will try to add images to new created events.
 				logging.debug ('Starting autodate routine')
 				deltaHours = 8  # Gap to find an existent event for the images.
@@ -920,11 +918,12 @@ if __name__ == '__main__':
 							Minimundate = dbconnection.execute("SELECT MIN(times) FROM (SELECT exposure_time as times FROM PhotoTable WHERE event_id = {0} and exposure_time != 0 UNION SELECT exposure_time as times FROM VideoTable WHERE event_id = {0} and exposure_time != 0)".format(Event_id,)).fetchone()[0]
 							if Minimundate == None:
 								logging.info ("\tWe couldn't assign any date from the Photoevent: {}".format(Filepath))
+								# we cant't do anything, I can't guess the picture date.
 								continue
 							else:
 								TimeOriginalEpoch = Minimundate
-						# we cant't do nothing
 						else:
+							# we cant't do anything, I can't guess the picture date.
 							continue
 					elif Event_id == -1 :
 						logging.debug ("\t Searchign an event to add the item...")
@@ -946,10 +945,9 @@ if __name__ == '__main__':
 							dbconnection.execute ("INSERT INTO EventTable \
 										(name,primary_photo_id,time_created,primary_source_id,comment) \
 									VALUES (null,null,{},'{}',null)".format( Time_created , Primary_source_id ))
-						# assigning  image/video exposure time
-					if eventID != -1:
-						logging.debug ('\tAssigning exposure time and event to the image')
-						dbconnection.execute ("UPDATE {} SET exposure_time = {}, event_id = {} where id = {}".format(Table,TimeOriginalEpoch,eventID,Id))
+					# assigning  image/video exposure time
+					logging.debug ('\tAssigning exposure time and event to the image')
+					dbconnection.execute ("UPDATE {} SET exposure_time = {}, event_id = {} where id = {}".format(Table,TimeOriginalEpoch,eventID,Id))
 					#Inserting metadatas in file
 					if commit_metadata and File_Format == 0 and TimeOriginalEpoch != None:
 						if dummy == False:
@@ -983,6 +981,7 @@ if __name__ == '__main__':
 			dbeventcursor = dbconnection.cursor ()
 			# Inserting a Trash event
 			dbeventcursor.execute("INSERT INTO EventTable (id, name) VALUES (-1,'Trash')")
+			dbconnection.commit()
 			# event cursor
 			dbeventcursor.execute('SELECT id,name FROM EventTable')
 			for e in dbeventcursor:
@@ -995,10 +994,11 @@ if __name__ == '__main__':
 				for l in times:
 					count += 1
 					suma += l[0]
+				eventavgtime = 0
 				if count == 0:
-					logging.debug ('\tEvent {} has no datable photos or videos (or is empty). Skipping.'.format(eventid))
-					continue
-				eventavgtime = suma/count
+					logging.debug ('\tEvent {} has no datable photos or videos (or is empty).'.format(eventid))
+				else:
+					eventavgtime = suma/count
 				eventtime = datetime.fromtimestamp(eventavgtime)
 
 				if eventname == None :
@@ -1011,7 +1011,10 @@ if __name__ == '__main__':
 				logging.debug ('## Processing event nº {}: {} ({})'.format(eventid,eventname,eventtime))
 
 				# defining event path:
-				if eventid == -1 :
+				if eventid == -1 or eventavgtime == 0:
+					if eventname == "":
+						# for events with no date
+						eventname = "Trash/event " + str(eventid)
 					eventpath = os.path.join(librarymainpath, eventname)
 					eventpathlast = os.path.join(librarymostrecentpath, eventname)
 				else:
@@ -1025,13 +1028,13 @@ if __name__ == '__main__':
 
 				# retrieving event's photos and videos
 				dbtablecursor = dbconnection.cursor()
-				dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable, editable_id, rating, md5 FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable, -1 AS editable_id, rating, md5 FROM VideoTable WHERE event_id = ?",(eventid, eventid))
+				dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable, editable_id, rating, md5, flags FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable, -1 AS editable_id, rating, md5, flags FROM VideoTable WHERE event_id = ?",(eventid, eventid))
 
 				# Process each file
 				for p in dbtablecursor:
 					idcounter += 1
 					eventpathF = eventpath
-					photoid, photopath, phototitle, phototimestamp, import_id, DBTable, editable_id, stars, filemd5 = p
+					photoid, photopath, phototitle, phototimestamp, import_id, DBTable, editable_id, stars, filemd5, Flags = p
 					photodate = datetime.fromtimestamp(phototimestamp)
 					photodateimport = datetime.fromtimestamp(import_id)
 					photofilename = os.path.basename(photopath)
@@ -1080,7 +1083,7 @@ if __name__ == '__main__':
 
 
 					# Setting the destination
-					if datetime.strftime(photodate, '%Y%m%d') == '19700101' and eventid == -1:
+					if Flags != 4 and (eventid == -1 or eventavgtime== 0):
 						logging.debug ('This file goes to the no-date folder')
 						eventpathF = eventpathF.replace('/Trash','/no_event',1)
 
