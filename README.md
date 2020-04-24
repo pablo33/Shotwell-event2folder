@@ -17,7 +17,7 @@ and even more, optionally:
 
 Python3, GExiv2 from Gi.repository, ffmpeg  
 
-This script has been tesded with Shotwell 0.18.0 to 0.28.2 (ubuntu 14.10 to 18.04LTS).
+This script has been tesded with Shotwell 0.18.0 to 0.30.8 (ubuntu 14.10 to 20.04LTS).
 
 Installing dependencies:  
 I'm sure that python3 comes with your linux distribution.  
