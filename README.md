@@ -19,10 +19,18 @@ Python3, GExiv2 from Gi.repository, ffmpeg
 
 This script has been tesded with Shotwell 0.18.0 to 0.28.2 (ubuntu 14.10 to 18.04LTS).
 
+Installing dependencies:  
+I'm sure that python3 comes with your linux distribution.  
+You can install the packages from the command line: GExiv2 is the "GObject-based wrapper around the Exiv2 library - introspection data"
+
+	sudo apt-get install gir1.2-gexiv2-0.10 ffmpeg
+
+
 **Usage:**
 Just launch the script from command line, it will create a config file, you can edit it to fit by your needings and then run it again.
 
 	python3 Shotwell_event2folder.py
+
 
 
 See wiki page for further information. 
