@@ -106,7 +106,6 @@ def NoTAlloChReplace (myfilename):
 		myfilename = myfilename.replace(i, '_')
 	return myfilename
 
-
 def gsettingsget (schema, key, data_type):
 	"""
 	Gets a key from dconfig using gsettings binary.
@@ -117,7 +116,6 @@ def gsettingsget (schema, key, data_type):
 	if data_type == 'bool':
 		value = eval(value.decode().strip().capitalize())
 		return value
-
 
 # Functions
 def extracttitle (photofilename):
@@ -980,8 +978,11 @@ if __name__ == '__main__':
 
 			dbeventcursor = dbconnection.cursor ()
 			# Inserting a Trash event
-			dbeventcursor.execute("INSERT INTO EventTable (id, name) VALUES (-1,'Trash')")
-			dbconnection.commit()
+			try:
+				dbeventcursor.execute("INSERT INTO EventTable (id, name) VALUES (-1,'Trash')")
+				dbconnection.commit()
+			except:
+				pass
 			# event cursor
 			dbeventcursor.execute('SELECT id,name FROM EventTable')
 			for e in dbeventcursor:
@@ -1040,7 +1041,7 @@ if __name__ == '__main__':
 					photofilename = os.path.basename(photopath)
 
 					if itemcheck (photopath) != "file":
-						infomsg = "! Image or video in database is not present at this moment."
+						infomsg = f"! Image or video in database is not present at this moment:{photopath}"
 						print (infomsg) ; logging.warning (infomsg)
 						continue
 
