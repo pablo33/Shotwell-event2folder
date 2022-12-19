@@ -4,8 +4,8 @@ import sqlite3, os, sys, shutil, logging, re, time, pickle
 from hashlib import md5
 
 from datetime import datetime
-import gi  # used to avoid Gi warning
-gi.require_version('GExiv2', '0.10')  # used to avoid Gi warning
+import gi  # in use to avoid Gi warning
+gi.require_version('GExiv2', '0.10')  # in use to avoid Gi warning
 from gi.repository import GExiv2  # for metadata management. Dependencies: gir1.2-gexiv2   &   python-gobject
 from subprocess import check_output  # Checks if shotwell is active or not
 
@@ -24,7 +24,7 @@ class EmptyStringError(ValueError):
 
 
 # ------- Set Environment ---------
-gi.require_version('GExiv2', '0.10')  # user to avoid Gi warning
+gi.require_version('GExiv2', '0.10')  # in use to avoid Gi warning
 
 # ------- Set Variables ---------
 UserHomePath = os.getenv('HOME')
@@ -169,7 +169,7 @@ def extracttitle (photofilename):
 		logging.debug ("Discarding known standalone serie:" + title.lower())
 		title = ""
 
-	# Assigning a null value if title is empty
+	# Assigning a None value if title is empty
 	if title == "":
 		title = None
 	logging.debug ("The title for this entry will be: " + str(title))
@@ -187,7 +187,6 @@ def filemove (origin, dest):
 		if itemcheck (os.path.dirname(dest)) == '':
 			os.makedirs (os.path.dirname(dest))
 		shutil.move (origin, dest)
-	#print ("      > file has been moved. {}".format(dummymsg))
 	logging.debug ("\tfile has been moved. {}".format(dummymsg))
 	return dest
 
@@ -218,7 +217,7 @@ def Thumbfilepath (ID,Tablename='PhotoTable'):
 	return (source_id,Path128,Path360)
 
 def Deletethumb (ID):
-	""" This function deletes thumbnails given an ID
+	""" Given an ID, deletes its Thumbnails
 		"""
 	for f in Thumbfilepath(ID)[2:3]:
 		if itemcheck(f) == 'file':
@@ -242,11 +241,11 @@ def get_pid (app):
 	pidlist = list (map (la , pidlist))
 	return pidlist
 
-def getappstatus (app):
+def getappstatus (apps):
 	''' Given a list of names's process, it checks if there is any instance running
 		DefTest >> OK'''
 	state = False
-	for entry in app:
+	for entry in apps:
 		if get_pid (entry) != None:
 			state = True
 			break
@@ -259,7 +258,7 @@ def addtoconfigfile (linetoadd):
 	f.close()
 
 def Changes ():
-	""" Check if there have been modified ShotwellDatabase since last execution
+	""" Check if ShotwellDatabase has modifications since last execution
 		The last date of execution is stored in a file at user's configuration folder.
 		The file is created only in daemonmode.
 		
@@ -864,6 +863,12 @@ if __name__ == '__main__':
 		if daemonmode:
 			execution = Changes ()
 
+		# Check if Target folder is reachable. If not reachable, no execution possible.
+		if itemcheck (librarymainpath) != 'folder':
+			print ('\nWARNING: Library mainpath does not exist or is not reachable, revise configuration or make target folder available.')
+			logging.warning ('Target folder is not reachable')
+			execution = False
+
 		if execution:
 			execution = False
 			for a in range (countdown,0,-1):
@@ -885,7 +890,7 @@ if __name__ == '__main__':
 			__Schema__, __appversion__ = dbconnection.execute ("SELECT schema_version, app_version FROM versiontable").fetchone()
 			if __Schema__ != 20 :
 				print ("This utility may not work properly with a Shotwell DataBase Schema other than 20")
-				print ("DB schema 20 is used on Shotwell version 0.22 - 0.29.1")
+				print ("DB schema 20 is used on Shotwell version 0.22 - 0.30.14")
 				print ("Actual DB Schema is {}".format (__Schema__))
 				print ("Actual Shotwell Version is {}".format (__appversion__))
 				exit ()
@@ -1117,7 +1122,6 @@ if __name__ == '__main__':
 									image_metadata.set_tag_string (x, mydictofmetadatas[x])
 								if dummy == False :
 									image_metadata.save_file()
-								#print ("    Image title metadata has been updated with database title: {}{}".format(phototitle, dummymsg))
 								logging.info ("\tImage title metadata has been updated with database title: {}{}".format(phototitle, dummymsg))
 					
 					photonewfilename = NoTAlloChReplace (photonewfilename)  # Replace not allowed Characters on filename for some filesystems
