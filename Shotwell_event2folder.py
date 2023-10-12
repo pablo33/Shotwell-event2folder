@@ -1,5 +1,11 @@
 #!/usr/bin/python3
 
+# Git Repository at: https://github.com/pablo33/Shotwell-event2folder
+# License: GNU General Public License v2.0
+__author__ = "pablo33"
+__version__ = "1.3"
+
+
 import sqlite3, os, sys, shutil, logging, re, time, pickle
 from hashlib import md5
 
