@@ -24,7 +24,7 @@ class EmptyStringError(ValueError):
 
 
 # ------- Set Environment ---------
-gi.require_version('GExiv2', '0.10')  # in use to avoid Gi warning
+gi.require_version('GExiv2', '0.10')  # just to avoid Gi warning
 
 # ------- Set Variables ---------
 UserHomePath = os.getenv('HOME')
@@ -653,23 +653,24 @@ if __name__ == '__main__':
 	# Getting variables from user's config file and/or updating it.
 	Default_Config_options = (
 		('librarymainpath',	 		"'{}/Pictures'".format(UserHomePath), '# Main path where your imeges are or you want them to be.'),
-		('dummy',			 		'False', '# Dummy mode. True will not perform any changes to DB or File structure.'),
-		('insertdateinfilename',	'False', '#  Filenames will be renamed with starting with a full-date expression.'),
+		('importtitlefromfilenames','False', '# Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.'),
+		('inserttitlesinfiles',		'False', '# Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title\'s in database is empty, it will set this retrieved title in both file, and database.'),
+		('insertdateinfilename',	'False', '# Filenames will be renamed with starting with a full-date expression.'),
+		('flat_tree',				'False', '# Place all events on a single folder, and not by years.'),
+		('assignstat',				'False', '# on autodate routine, assign a date from file creation (stat) in case a no valid date were found.'),
+		('autodate',				'False', '# When True, it tries to auto-date _no date event_ photos. It will retrieve dates from filenames and add them to an existing event. A new event is created in case no event is found.'),
+		('mintepoch',				'1998',	 '# Minimun year, in order to fetch years from filenames.'),
 		('clearfolders', 			'True' , '# Delete empty folders.'),
 		('librarymostrecentpath',	"'{}/Pictures/mostrecent'".format(UserHomePath), '# Path to send the most recent pictures. You can set this path synced with Dropbox pej.'),
 		('mostrecentkbs', 			'0', '# Max amount of Kbs to send to the most recent pictures path as destination. Set 0 if you do not want to send any pictures there. (2000000000 is 2Gb)'),
 		('morerecent_stars',		'-1', '# use values from -1 to 5 . Filter pictures or videos by rating to send to the more recent pictures path as destination. use -1 to move all files or ignore this option (default).'),
-		('importtitlefromfilenames','False', '# Get a title from the filename and set it as title in the database. It only imports titles if the photo title at Database is empty.'),
-		('inserttitlesinfiles',		'False', '# Insert titles in files as metadata, you can insert or update your files with the database titles. If importtitlefromfilenames is True, and the title\'s in database is empty, it will set this retrieved title in both file, and database.'),
-		('daemonmode',				'False','# It keeps the script running and process Shotwell DataBase if it has changes since last execution.'),
-		('sleepseconds',			'120','# Number of seconds to sleep, until another check in daemon mode.'),
 		('conv_mov',				'False','# Convert movies with ffmpeg to shrink their size'),
 		('conv_bitrate_kbs',		'1200','# Movies under this average bitrate will not be processed'),
 		('conv_flag',				"''",'# Only convert .mov videos wich ends on this string. leave an empty string to convert all videos.'),
 		('conv_extension',			"'MOV'", '# Filter video conversion to this kind of movies, leave an empty string to convert all file formats.'),
-		('autodate',				'False', '# When True, it tries to auto-date _no date event_ photos. It will retrieve dates from filenames and add them to an existing event. A new event is created in case no event is found.'),
-		('assignstat',				'False', '# on autodate routine, assign a date from file creation (stat) in case a no valid date were found.'),
-		('mintepoch',				'1998',	 '# Minimun year, in order to fetch years from filenames.')
+		('daemonmode',				'False','# It keeps the script running and process Shotwell DataBase if it has changes since last execution.'),
+		('sleepseconds',			'120','# Number of seconds to sleep, until another check in daemon mode.'),
+		('dummy',			 		'False', '# Dummy mode. True will not perform any changes to DB or File structure.'),
 		)
 
 	retrievedvalues = dict ()
@@ -683,7 +684,7 @@ if __name__ == '__main__':
 
 	if abort:
 		print ("Your user config file has been updated with new options:", userfileconfig, '\n')
-		print ("A default value has been assigned, please customize by yourself before run this software again.\n")
+		print ("Default values have been assigned, please customize by yourself before run this software again.\n")
 		print ("This software will attempt to open your configuration file with a text editor (gedit).")
 		input ("Press a key.")
 		os.system ("gedit " + userfileconfig)
@@ -707,6 +708,7 @@ if __name__ == '__main__':
 	autodate = retrievedvalues ['autodate']
 	assignstat = retrievedvalues ['assignstat']
 	mintepoch = retrievedvalues ['mintepoch']
+	flat_tree = retrievedvalues ['flat_tree']
 
 	# Fetched from Shotwell's configuration
 	commit_metadata = gsettingsget('org.yorba.shotwell.preferences.files','commit-metadata','bool')
@@ -785,6 +787,12 @@ if __name__ == '__main__':
 			else:
 				mintepoch = str(mintepoch)
 
+	#	--flat_tree
+	if type(flat_tree) != bool:
+		errmsgs.append ("\n flat_tree at configuration file must be True or False.")
+		logging.critical ("flat_tree value is not boolean.")
+
+
 	# exit if errors are econuntered
 	if len (errmsgs) != 0 :
 		for a in errmsgs:
@@ -816,6 +824,7 @@ if __name__ == '__main__':
 	'assignstat'			:	assignstat,
 	'commit_metadata'		:	commit_metadata,
 	'mintepoch'				:	mintepoch,
+	'flat_tree'				:	flat_tree,
 	}
 
 	
@@ -885,6 +894,7 @@ if __name__ == '__main__':
 					break
 
 		if execution:
+			# Connecting to DB
 			dbconnection = sqlite3.connect (DBpath)
 
 			__Schema__, __appversion__ = dbconnection.execute ("SELECT schema_version, app_version FROM versiontable").fetchone()
@@ -1024,14 +1034,18 @@ if __name__ == '__main__':
 					eventpath = os.path.join(librarymainpath, eventname)
 					eventpathlast = os.path.join(librarymostrecentpath, eventname)
 				else:
-					eventpath = os.path.join(librarymainpath,eventtime.strftime('%Y'),eventtime.strftime('%Y-%m-%d ') + eventname)
-					eventpathlast = os.path.join(librarymostrecentpath,eventtime.strftime('%Y'),eventtime.strftime('%Y-%m-%d ') + eventname)
+					if flat_tree:
+						main_branch_name = ""
+					else:
+						main_branch_name = eventtime.strftime('%Y')
+					eventpath = os.path.join(librarymainpath,main_branch_name,eventtime.strftime('%Y-%m-%d ') + eventname)
+					eventpathlast = os.path.join(librarymostrecentpath,main_branch_name,eventtime.strftime('%Y-%m-%d ') + eventname)
 
 				eventpath, eventpathlast = eventpath.strip(), eventpathlast.strip()
 
 				logging.debug ("path for the event: " + eventpath)
 				logging.debug ("path for the event in case of the the most recent pictures: " + eventpathlast)
-
+			
 				# retrieving event's photos and videos
 				dbtablecursor = dbconnection.cursor()
 				dbtablecursor.execute("SELECT id, filename, title, exposure_time, import_id, 'PhotoTable' AS DBTable, editable_id, rating, md5, flags FROM PhotoTable WHERE event_id = ? UNION SELECT id, filename, title, exposure_time, import_id, 'VideoTable' AS DBTable, -1 AS editable_id, rating, md5, flags FROM VideoTable WHERE event_id = ?",(eventid, eventid))
