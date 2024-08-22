@@ -3,7 +3,7 @@
 # Git Repository at: https://github.com/pablo33/Shotwell-event2folder
 # License: GNU General Public License v2.0
 __author__ = "pablo33"
-__version__ = "1.3"
+__version__ = "1.3.1"
 
 
 import sqlite3, os, sys, shutil, logging, re, time, pickle
@@ -884,6 +884,7 @@ if __name__ == '__main__':
 			logging.warning ('Target folder is not reachable')
 			execution = False
 
+		# Check if shotwell process is alive. Cancels the execution if it is alive.
 		if execution:
 			execution = False
 			for a in range (countdown,0,-1):
@@ -904,9 +905,9 @@ if __name__ == '__main__':
 			dbconnection = sqlite3.connect (DBpath)
 
 			__Schema__, __appversion__ = dbconnection.execute ("SELECT schema_version, app_version FROM versiontable").fetchone()
-			if __Schema__ != 20 :
-				print ("This utility may not work properly with a Shotwell DataBase Schema other than 20")
-				print ("DB schema 20 is used on Shotwell version 0.22 - 0.30.14")
+			if 20 < __Schema__ < 24 :
+				print ("This utility may not work properly with a Shotwell DataBase Schema other than 20 to 24")
+				print ("DB schema 20~24 is used on Shotwell version 0.22.xx - 0.32.xx")
 				print ("Actual DB Schema is {}".format (__Schema__))
 				print ("Actual Shotwell Version is {}".format (__appversion__))
 				exit ()
@@ -984,6 +985,7 @@ if __name__ == '__main__':
 			progress = Progresspercent (totalreg)
 			idcounter = 0
 
+			# Most recent pictures routine.
 			if mostrecentkbs > 0 :
 				dballitemscursor = dbconnection.cursor ()
 				dballitemscursor.execute ("SELECT filesize, exposure_time, rating, 'PhotoTable' as tabla FROM PhotoTable WHERE rating >= %(rating)s UNION SELECT filesize, exposure_time, rating,'VideoTable' as tabla FROM VideoTable WHERE rating >= %(rating)s ORDER BY exposure_time DESC" %{'rating':morerecent_stars} )
@@ -997,14 +999,15 @@ if __name__ == '__main__':
 				logging.info ("Files earlier than {} and with a rating of {} or more will be sent to {}".format (datelimit2move_exposure.strftime('%Y-%m-%d'), morerecent_stars, librarymostrecentpath))
 				dballitemscursor.close()
 
-			dbeventcursor = dbconnection.cursor ()
 			# Inserting a Trash event
+			dbeventcursor = dbconnection.cursor ()
 			try:
 				dbeventcursor.execute("INSERT INTO EventTable (id, name) VALUES (-1,'Trash')")
 				dbconnection.commit()
 			except:
 				pass
-			# event cursor
+
+			# Processing events. Event cursor
 			dbeventcursor.execute('SELECT id,name FROM EventTable')
 			for e in dbeventcursor:
 				# Retrieve event data
@@ -1116,7 +1119,7 @@ if __name__ == '__main__':
 					# (option) import title from filenames
 					if importtitlefromfilenames == True and phototitle == None:
 						phototitle = extracttitle (os.path.splitext(photofilename)[0])
-								# Changing Title pointer
+						# Changing Title pointer
 						if dummy == False:
 							dbconnection.execute ('UPDATE %s SET title = ? where id = ?' % DBTable, (phototitle, photoid))
 						logging.debug ("Entry %s, title updated at table %s. Title:%s %s" % (photoid, DBTable, phototitle, dummymsg))
@@ -1156,7 +1159,8 @@ if __name__ == '__main__':
 
 					## Checks the md5 hash of the files and it compares it with the DB
 						# Note that Shotwell updates the md5hash if the file has changed externally
-					'''fh = md5hash (photopath)
+					'''
+					fh = md5hash (photopath)
 					logging.debug ("md5 in DB is the same as the file: {}".format(fh == filemd5))
 						'''
 					
@@ -1167,7 +1171,6 @@ if __name__ == '__main__':
 						continue
 					else:
 						#moving files from photopath to dest
-						#print ('\n    moving file {}'.format(photofilename))
 						dest = filemove (photopath, dest)
 						# Changing DB pointer
 						if dummy == False:
@@ -1177,6 +1180,7 @@ if __name__ == '__main__':
 						logging.debug (os.path.dirname(photopath) + ' added to folders list')
 						logging.debug ("Entry {} updated at table {}. {}".format(photoid, DBTable, dummymsg))
 					
+					# Checking externally edited photos. Backups images are sent besides modified images.
 					if editable_id != -1:
 						editable_photo = dbconnection.execute ('SELECT filepath FROM BackingPhotoTable WHERE id = %s' %editable_id).fetchone()[0]
 						editable_dest = os.path.splitext(dest)[0] + '_modified' + os.path.splitext(dest)[1]
@@ -1201,6 +1205,7 @@ if __name__ == '__main__':
 
 				dbtablecursor.close()
 
+			# Deleting Trash event and closing connections
 			dbeventcursor.execute("DELETE FROM EventTable WHERE id = -1")
 			dbeventcursor.close()
 			dbconnection.commit()
@@ -1251,12 +1256,19 @@ if __name__ == '__main__':
 					Entry_width = entry [3]
 					Entry_height = entry [4]
 					Entry_clip_duration = entry [5]
+					#Entry_is_interpretable = entry [6]
 					Entry_filesize = entry [7]
 					Entry_timestamp = entry [8]
 					Entry_exposure_time = entry [9]
+					#Entry_import_id = entry [10]
 					Entry_event_id = entry [11]
+					#Entry_md5 = entry [12]
+					#Entry_time_created [13]
 					Entry_rating = entry [14]
 					Entry_title = entry [15]
+					#Entry_backlinks = entry [16]
+					#Entry_time_reimported = entry [17]
+					#Entry_flags = entry [18]
 					Entry_comment = entry [19]
 
 					if itemcheck (sourcefile) != 'file':
@@ -1278,10 +1290,11 @@ if __name__ == '__main__':
 						logging.warning ('\tIt seems that an old converted file was there, it has been deleted.{}'.format(dummymsg))
 					
 					if dummy == False:
-						ffmpeg_status = os.system ('ffmpeg -i "{}" {} "{}"'.format(sourcefile, metadataparam, newFilename))
+						logging.info (f'\tConverting video {newFilename}')
+						ffmpeg_status = os.system (f'ffmpeg -i "{sourcefile}" {metadataparam} "{newFilename}"')
 					else:
 						ffmpeg_status = 0
-					logging.debug ('\tffmpeg exitted with code: {}{}'.format(ffmpeg_status, dummymsg))
+					logging.debug (f'\tffmpeg exitted with code: {ffmpeg_status}{dummymsg}')
 
 					if getappstatus (['shotwell']):
 						print ('\nWARNING: Shotwell process is running, I will not run meanwhile Shotwell application is running.')
