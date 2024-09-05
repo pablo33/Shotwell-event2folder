@@ -1363,7 +1363,7 @@ if __name__ == '__main__':
 							if itemcheck (newFilename) == 'file':
 								os.remove(newFilename)
 							if ffmpeg_status is not None:
-								failedName = os.path.splitext(sourcefile)[0]+'_f.{}'.format (conv_extension)
+								failedName = os.path.splitext(sourcefile)[0]+'_f{}'.format (os.path.splitext(sourcefile)[1])
 								os.rename (sourcefile, failedName)
 								dbconnection.execute('UPDATE videotable SET filename=? WHERE id=?', (failedName,Entry_id))
 							else:
