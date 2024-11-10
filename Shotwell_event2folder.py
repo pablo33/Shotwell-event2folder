@@ -84,7 +84,7 @@ def Nextfilenumber (dest):
 	filename = os.path.basename (dest)
 	extension = os.path.splitext (dest)[1]
 	# extract secuence
-	expr = '\(\d{1,}\)'+extension
+	expr = r'\(\d{1,}\)'+extension
 	mo = re.search (expr, filename)
 	try:
 		grupo = mo.group()
@@ -95,7 +95,7 @@ def Nextfilenumber (dest):
 	else:
 		#  print ("Filename has a final counter expression.  (n).extension ")
 		cut = len (mo.group())
-		countergroup = (re.search ('\d{1,}', grupo))
+		countergroup = (re.search (r'\d{1,}', grupo))
 		counter = int (countergroup.group()) + 1
 	if cut == 0 :
 		newfilename = os.path.join( os.path.dirname(dest), filename + "(" + str(counter) + ")" + extension)
@@ -128,12 +128,12 @@ def extracttitle (photofilename):
 	title = photofilename
 
 	# Discarding fulldate identifiers
-	sep = '[-._: ]'
-	for expr in ['[12]\d{3}%(sp)s?[01]\d%(sp)s?[0-3]\d%(sp)s?[012]\d%(sp)s?[0-5]\d%(sp)s?[0-5]\d' %{'sp':sep},
-					'[12]\d{3}%(sp)s?[01]\d%(sp)s?[0-3]\d' %{'sp':sep},
-					'[Ww][Aa]\d{4}',
-					'[12]\d{3}%(sp)s?[01]\d' %{'sp':sep},
-					'MVI%(sp)s\d{4}' %{'sp':sep} ]:
+	sep = r'[-._: ]'
+	for expr in [r'[12]\d{3}%(sp)s?[01]\d%(sp)s?[0-3]\d%(sp)s?[012]\d%(sp)s?[0-5]\d%(sp)s?[0-5]\d' %{'sp':sep},
+					r'[12]\d{3}%(sp)s?[01]\d%(sp)s?[0-3]\d' %{'sp':sep},
+					r'[Ww][Aa]\d{4}',
+					r'[12]\d{3}%(sp)s?[01]\d' %{'sp':sep},
+					r'MVI%(sp)s\d{4}' %{'sp':sep} ]:
 		while True:
 			mo = re.search (expr, title)
 			try:
@@ -146,7 +146,7 @@ def extracttitle (photofilename):
 				title = title.replace(mo.group(),"")
 	
 	# Replacing starting simbols & numbers
-	expr = '[0-9 ]?[-_#.%$& ]?[0-9 ]?'
+	expr = r'[0-9 ]?[-_#.%$& ]?[0-9 ]?'
 	while True:
 		mo = re.search (expr, title)
 		try:
@@ -365,7 +365,7 @@ def yearmonthfinder (string):
 	""" Given a string, returns a combo of numeric  year-month if it is found,
 		otherwise returns None .
 		"""
-	expr = ".*(?P<year>[12]\d{3})[-_ /:.]?(?P<month>[01]?\d).*"
+	expr = r".*(?P<year>[12]\d{3})[-_ /:.]?(?P<month>[01]?\d).*"
 	mo = re.search(expr, string)
 	try:
 		mo.group()
@@ -384,7 +384,7 @@ def yearmonthdayfinder (string):
 		otherwise returns None.
 		"""
 
-	expr = "(?P<year>[12]\d{3})[-_ /:.]?(?P<month>[01]?\d)[-_ /:.]?(?P<day>[0-3]?\d)"
+	expr = r"(?P<year>[12]\d{3})[-_ /:.]?(?P<month>[01]?\d)[-_ /:.]?(?P<day>[0-3]?\d)"
 	mo = re.search(expr, string)
 	try:
 		mo.group()
@@ -402,8 +402,8 @@ def fulldatefinder (string):
 	""" Given a string, returns a combo of numeric YYYY-MM-DD-hh-mm-ss True if a full-date-identifier
 		if found, otherwise returns None"""
 	start = False
-	sep = '[-_ :.]'
-	expr = '(?P<year>[12]\d{3})%(sep)s?(?P<month>[01]?\d)%(sep)s?(?P<day>[0-3]?\d)%(sep)s?(?P<hour>[012]\d)%(sep)s?(?P<min>[0-5]\d)%(sep)s?(?P<sec>[0-5]\d)' %{'sep':'[-_ .:]'}
+	sep = r'[-_ :.]'
+	expr = r'(?P<year>[12]\d{3})%(sep)s?(?P<month>[01]?\d)%(sep)s?(?P<day>[0-3]?\d)%(sep)s?(?P<hour>[012]\d)%(sep)s?(?P<min>[0-5]\d)%(sep)s?(?P<sec>[0-5]\d)' %{'sep':'[-_ .:]'}
 	mo = re.search (expr, string)
 	try:
 		mo.group()
@@ -427,11 +427,11 @@ def serieserial (string):
 	''' given a filename string, it returns serie and serial number (tuple)
 		otherwise it returns None'''
 
-	sep = '[-_ ]'
+	sep = r'[-_ ]'
 	seriallist = ['WA','IMG','PICT','MVI','img']
 	#seriallist = seriallist + seriallist.lower() for 
 	for key in seriallist :
-		expr = '(?P<se>%s%s?)(?P<sn>[0-9]{4})'%(key,sep)
+		expr = r'(?P<se>%s%s?)(?P<sn>[0-9]{4})'%(key,sep)
 
 		mo = re.search (expr, string)
 		try:
@@ -450,8 +450,8 @@ def serieserial (string):
 def findeventname(Abranch):
 	#  /YYYY-MM XeventnameX/
 	exprlst = [
-		"/[12]\d{3}[-_ ]?[01]\d ?(?P<XeventnameX>.*)/",
-		"[12]\d{3}[-_ ]?[01]\d[-_ ]?[0-3]\d ?(?P<XeventnameX>.*)/",
+		r"/[12]\d{3}[-_ ]?[01]\d ?(?P<XeventnameX>.*)/",
+		r"[12]\d{3}[-_ ]?[01]\d[-_ ]?[0-3]\d ?(?P<XeventnameX>.*)/",
 		]
 
 	#  /YYYY-MM-DD XeventnameX/
@@ -1092,7 +1092,7 @@ if __name__ == '__main__':
 					# checking a starting date in filename
 					sep = ""
 					if insertdateinfilename == True and phototimestamp != 0 and eventid != -1:
-						expr = '[12]\d{3}[01]\d[0-3]\d[.-_ ]?[012]\d[0-5]\d[0-5]\d'
+						expr = r'[12]\d{3}[01]\d[0-3]\d[.-_ ]?[012]\d[0-5]\d[0-5]\d'
 						mo = re.search (expr, photofilename)
 						try:
 							mo.group()
