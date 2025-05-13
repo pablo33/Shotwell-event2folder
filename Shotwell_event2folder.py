@@ -1381,7 +1381,8 @@ if __name__ == '__main__':
 								newEntry_id = dbconnection.execute ('SELECT max(id) FROM videotable').fetchone()[0]
 								newVideoTag_id = f'video-{newEntry_id:016x},'
 								TagCursor = dbconnection.cursor ()
-								TagCursor.execute ("SELECT id, photo_id_list FROM tagtable WHERE photo_id_list LIKE '%?%'", (Entry_tag_id,))
+								logging.debug ( f'\tSelecting tags for entry {Entry_tag_id}')
+								TagCursor.execute ("SELECT id, photo_id_list FROM tagtable WHERE photo_id_list LIKE ?", (f'%{Entry_tag_id}%',))
 								for TagEntry in TagCursor:
 									lineID , tagtext = TagEntry[0], TagEntry[1]
 									newTagText = tagtext + newVideoTag_id
