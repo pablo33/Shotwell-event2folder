@@ -719,8 +719,7 @@ if __name__ == '__main__':
 	retrievedvalues = dict ()
 	for option in Default_Config_options:
 		try:
-			 retrievedvalues[option[0]] = eval( f'Shotevent2folder_cfg.{option[0]}')
-
+			retrievedvalues[option[0]] = eval( f'Shotevent2folder_cfg.{option[0]}')
 		except AttributeError:
 			addtoconfigfile ('{} = {}  {}'.format(*option))
 			abort = True
