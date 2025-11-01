@@ -3,7 +3,7 @@
 # Git Repository at: https://github.com/pablo33/Shotwell-event2folder
 # License: GNU General Public License v2.0
 __author__ = "pablo33"
-__version__ = "1.3.1"
+__version__ = "1.3.2"
 
 
 import sqlite3, os, sys, shutil, logging, re, time, pickle
@@ -667,6 +667,46 @@ def add_date_metadate (imagepath:str,TimeEpoch:str):
 	logging.debug ( f'\t{imagepath}')
 	return
 
+class find_my_file():
+	""" Class to find a file by its filename, it also can check its md5 hash
+		
+	Once found, it can returns its relative path,
+	"""
+	def __init__ (self, mainpath:str, filename:str, filemd5:str=None):
+		self.mainpath = mainpath
+		self.filename = filename
+		self.filemd5 = filemd5
+		self.foundpath = None
+		self.md5match = None
+		self.is_found = None
+		self.searchfile()
+
+	def searchfile (self)->str:
+		""" Searches for the file in the mainpath.
+
+		It returns the fullpath if found, or None if not found.
+		"""
+		for dirpath, dirnames, filenames in os.walk (self.mainpath):
+			if self.filename in filenames:
+				fullpath = os.path.join (dirpath, self.filename)
+				self.foundpath = fullpath
+				self.is_found = True
+				print (f'File found: {fullpath}')
+				print (f'Checking/calculating md5 hash....')
+				calcmd5 = md5hash (fullpath)
+				if self.filemd5 != None:
+					if calcmd5 == self.filemd5:
+						self.md5match = True
+						logging.debug (f'File found with matching md5: {fullpath}')
+					else:
+						logging.debug (f'File found but md5 does not match, assigning new md5hash: {fullpath}')
+						self.md5match = False
+						self.md5 = calcmd5
+					return fullpath
+		self.is_found = False
+		logging.debug (f'File not found: {self.filename} in {self.mainpath}')
+		return None
+
 
 if __name__ == '__main__':
 
@@ -711,9 +751,11 @@ if __name__ == '__main__':
 		('conv_bitrate_kbs',		'1200','# Movies under this average bitrate will not be processed'),
 		('conv_flag',				"''",'# Only convert .mov videos wich ends on this string. leave an empty string to convert all videos.'),
 		('conv_extension',			"'MOV'", '# Filter video conversion to this kind of movies, leave an empty string to convert all file formats.'),
+		('fix_missingvideos',		'False','# Fix missing videos in Shotwell database by scanning the library path for video files not present in the database.'),
 		('daemonmode',				'False','# It keeps the script running and process Shotwell DataBase if it has changes since last execution.'),
 		('sleepseconds',			'120','# Number of seconds to sleep, until another check in daemon mode.'),
 		('dummy',			 		'False', '# Dummy mode. True will not perform any changes to DB or File structure.'),
+		('logging_level',			"'INFO'", '# Logging level. It can be DEBUG, INFO, WARNING, ERROR, CRITICAL.'),
 		)
 
 	retrievedvalues = dict ()
@@ -751,6 +793,8 @@ if __name__ == '__main__':
 	assignstat = retrievedvalues ['assignstat']
 	mintepoch = retrievedvalues ['mintepoch']
 	flat_tree = retrievedvalues ['flat_tree']
+	fix_missingvideos = retrievedvalues ['fix_missingvideos']
+	logging_level = retrievedvalues ['logging_level']
 
 	# Fetched from Shotwell's configuration
 	commit_metadata = gsettingsget('org.yorba.shotwell.preferences.files','commit-metadata','bool')
@@ -759,7 +803,7 @@ if __name__ == '__main__':
 	# ===============================
 	# The logging module.
 	# ===============================
-	loginlevel = 'INFO'  # INFO ,DEBUG
+	initialloginlevel = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 	logpath = './'
 	logging_file = os.path.join(logpath, 'Shotwell_event2folder.log')
 
@@ -769,9 +813,9 @@ if __name__ == '__main__':
 	today = "/".join( [str(now.day), str(now.month), str(now.year)])
 	tohour = ":".join( [str(now.hour), str(now.minute)])
 
-	print( "Loginlevel:", loginlevel)
+	print( "Loginlevel:", initialloginlevel)
 	logging.basicConfig(
-		level = loginlevel,
+		level = initialloginlevel,
 		format = '%(asctime)s : %(levelname)s : %(message)s',
 		filename = logging_file,
 		filemode = 'w'  # a = add
@@ -834,6 +878,18 @@ if __name__ == '__main__':
 		errmsgs.append ("\n flat_tree at configuration file must be True or False.")
 		logging.critical ("flat_tree value is not boolean.")
 
+	#	--fix_missingvideos
+	if type(fix_missingvideos) != bool:
+		errmsgs.append ("\n fix_missingvideos at configuration file must be True or False.")
+		logging.critical ("fix_missingvideos value is not boolean.")
+
+	if type(logging_level) != str:
+		errmsgs.append( "\n logging_level at configuration file is not a string. Must be one of this: DEBUG, INFO, WARNING, ERROR, CRITICAL")
+		logging.critical( "logging_level is not a string")
+	elif logging_level not in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+		errmsgs.append( "\n logging_level at configuration out of range. Must be one of this: DEBUG, INFO, WARNING, ERROR, CRITICAL")
+		logging.critical( f"logging_level out of range. actual value: {logging_level}")
+
 
 	# exit if errors are econuntered
 	if len (errmsgs) != 0 :
@@ -867,12 +923,19 @@ if __name__ == '__main__':
 	'commit_metadata'		:	commit_metadata,
 	'mintepoch'				:	mintepoch,
 	'flat_tree'				:	flat_tree,
+	'fix_missingvideos'		:	fix_missingvideos,
+	'logging_level'			:	logging_level,
 	}
 
 	
 	for a in parametersdyct:
 		logging.info (f'{" "*(30-len(a))}{a} = {parametersdyct[a]}')
 	logging.info('')
+
+	if initialloginlevel != logging_level:
+		logging.getLogger().setLevel (logging_level)
+		print( "Changed loginlevel to ", logging_level)
+
 
 	# Inserting Escape chars for SQL querying
 	conv_flag_q = conv_flag.replace ('/','//')
@@ -1042,7 +1105,7 @@ if __name__ == '__main__':
 				dbconnection.commit()
 			except:
 				pass
-
+			
 			# Processing events. Event cursor
 			dbeventcursor.execute('SELECT id,name FROM EventTable')
 			for e in dbeventcursor:
@@ -1243,7 +1306,7 @@ if __name__ == '__main__':
 								logging.warning (infomsg)
 
 				dbtablecursor.close()
-
+			
 			# Deleting Trash event and closing connections
 			dbeventcursor.execute("DELETE FROM EventTable WHERE id = -1")
 			dbeventcursor.close()
@@ -1413,11 +1476,35 @@ if __name__ == '__main__':
 						dbconnection.commit()
 					
 				dbMOVcursor.close()
+
+			# Fixing missing videos
+			if fix_missingvideos:
+				logging.info ('Fixing missed Videos')
+				dbFIXVIDEOCursor = dbconnection.cursor()
+				dbFIXVIDEOCursor.execute ("SELECT id, filename, md5, timestamp, exposure_time FROM videotable WHERE flags == 2 ")
+				if dbFIXVIDEOCursor.rowcount:
+					for entry in dbFIXVIDEOCursor:
+						VT_id = entry [0]
+						VT_filename = entry [1]
+						VT_md5 = entry [2]
+						VT_timestamp = entry [3]
+						VT_exposure_time = entry [4]
+
+						print (f'Searching missing video file for video id({VT_id})...')
+						fmf = find_my_file(mainpath=librarymainpath, filename = os.path.basename(VT_filename), filemd5 = VT_md5)
+						if fmf.is_found and fmf.md5match and fmf.foundpath != VT_filename and itemcheck (VT_filename) == '':
+							#moving file to new path
+							if not dummy:
+								if itemcheck (os.path.dirname(VT_filename)) == '':
+									os.makedirs (os.path.dirname(VT_filename))
+								result = os.rename (fmf.foundpath, VT_filename)
+							logging.info ( f'File for video id({VT_id}) was found at: {fmf.foundpath} and moved to its original location: {VT_filename}')
+
 			# Closing db Connection
 			dbconnection.close ()
 			logging.debug ("DB connection was closed")
 
-
+		# Updating LastExec file and sleeping if daemonmode is active
 		if daemonmode:
 			if execution:
 				f = open (lastExecFile, 'wb')
