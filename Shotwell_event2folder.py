@@ -1479,10 +1479,11 @@ if __name__ == '__main__':
 
 			# Fixing missing videos
 			if fix_missingvideos:
-				logging.info ('Fixing missed Videos')
+				logging.info ('Searching missed Videos')
 				dbFIXVIDEOCursor = dbconnection.cursor()
 				dbFIXVIDEOCursor.execute ("SELECT id, filename, md5, timestamp, exposure_time FROM videotable WHERE flags == 2 ")
 				if dbFIXVIDEOCursor.rowcount:
+					logging.info ('Fixing missed Videos')
 					for entry in dbFIXVIDEOCursor:
 						VT_id = entry [0]
 						VT_filename = entry [1]
@@ -1499,7 +1500,8 @@ if __name__ == '__main__':
 									os.makedirs (os.path.dirname(VT_filename))
 								result = os.rename (fmf.foundpath, VT_filename)
 							logging.info ( f'File for video id({VT_id}) was found at: {fmf.foundpath} and moved to its original location: {VT_filename}')
-
+				else:
+					logging.info ('No missing videos found.')
 			# Closing db Connection
 			dbconnection.close ()
 			logging.debug ("DB connection was closed")
