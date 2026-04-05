@@ -3,10 +3,12 @@
 # Git Repository at: https://github.com/pablo33/Shotwell-event2folder
 # License: GNU General Public License v2.0
 __author__ = "pablo33"
-__version__ = "1.3.2"
+__version__ = "1.3.3"
+__date__ = "2026-04-05"
 
 
-import sqlite3, os, sys, shutil, logging, re, time, pickle
+import sqlite3, os, sys, shutil, logging, re, time, pickle, subprocess
+
 from hashlib import md5
 
 from datetime import datetime
@@ -30,7 +32,7 @@ class EmptyStringError(ValueError):
 
 
 # ------- Set Environment ---------
-gi.require_version('GExiv2', '0.10')  # just to avoid Gi warning
+gi.require_version('GExiv2', '0.10')  # Just to avoid Gi warning
 
 # ------- Set Variables ---------
 UserHomePath = os.getenv('HOME')
@@ -771,7 +773,7 @@ if __name__ == '__main__':
 		print ("Default values have been assigned, please customize by yourself before run this software again.\n")
 		print ("This software will attempt to open your configuration file with a text editor (gedit).")
 		input ("Press a key.")
-		os.system ("gedit " + userfileconfig)
+		subprocess.run (["gedit", userfileconfig])
 		exit()
 
 	librarymainpath = retrievedvalues ['librarymainpath']
@@ -897,7 +899,7 @@ if __name__ == '__main__':
 			print (a)
 		print ('\nplease revise your config file.','\n ....exitting',sep='\n')
 		print ("This software will attempt to open your configuration file with a text editor (gedit).")
-		os.system (f"gedit {userfileconfig}")
+		subprocess.run (["gedit", userfileconfig])
 		exit()
 
 
@@ -951,7 +953,7 @@ if __name__ == '__main__':
 	# Checking if ffmpeg is at the system
 	ffmpeg = False
 	if conv_mov:
-		if os.system('ffmpeg --help') != 0:
+		if subprocess.run (['ffmpeg','-version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
 			print ('No ffmpeg tool is found. I will not able to process video files.')
 			print ('You can install it by typing $sudo apt-get install ffmpeg.')
 		else:
@@ -1385,7 +1387,7 @@ if __name__ == '__main__':
 						metadataparam += f'-metadata creation_time="{videoStringTime}"'
 
 					logging.info ( f'Processing file with ffmpeg: {sourcefile}')
-					newFilename = os.path.splitext(sourcefile)[0]+'_c.mov'
+					newFilename = os.path.splitext(sourcefile)[0]+ '_c.mov'
 					if itemcheck (newFilename) == 'file':
 						if dummy == False:
 							os.remove(newFilename)
@@ -1393,9 +1395,17 @@ if __name__ == '__main__':
 					
 					if dummy == False:
 						logging.info( f'\tConverting video {newFilename}')
-						ffmpeg_status = os.system (f'ffmpeg -i "{sourcefile}" {metadataparam} "{newFilename}"')
+						command = [
+								'ffmpeg',
+				 				'-i', sourcefile,
+								'-c:v', 'libx264',
+								'-crf', '23',
+								'-c:a', 'aac',
+								metadataparam,
+								newFilename]
+						ffmpeg_status = subprocess.run (command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
 					else:
-						ffmpeg_status = 0
+						ffmpeg_status = 0	# We assume that the conversion process was successful in dummy mode, but we won't do any real conversion.
 					logging.debug( f'\tffmpeg exitted with code: {ffmpeg_status}{dummymsg}')
 
 					if getappstatus (['shotwell']):
